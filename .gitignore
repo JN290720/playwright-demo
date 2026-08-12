@@ -1,0 +1,14 @@
+# Windowsの自動生成ファイル（隠しファイル）
+*.ini
+desktop.ini
+Thumbs.db
+
+# Playwright・Node.js関連の自動生成フォルダ
+node_modules/
+playwright-report/
+test-results/
+blob-report/
+.git/
+
+# その他不要なシステムファイル
+.DS_Store
