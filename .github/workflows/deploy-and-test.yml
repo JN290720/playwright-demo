@@ -5,7 +5,7 @@ on:
     branches: [ main, master ] # mainにマージされた時のみ発火（PR時は動かない）
 
 permissions:
-  contents: read
+  contents: write # 💡 レポート用gh-pages更新のために write に変更
   pages: write
   id-token: write
 
@@ -47,6 +47,26 @@ jobs:
       env:
         BASE_URL: ${{ needs.deploy.outputs.page_url }}
       run: npx playwright test
+
+    # 💡 [追加] テスト結果（HTMLレポート）を GitHub Pages (gh-pages ブランチ) へ自動デプロイ
+    # 成功・失敗を問わず常に実行され、ブラウザからURL直叩きでレポートを直接閲覧できるようにします
+    - name: Deploy Playwright Report to GitHub Pages
+      if: always()
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./playwright-report
+        destination_dir: main-deploy-report # mainブランチの最新本番テストレポートとして保存
+
+    # 💡 [追加] 実行完了時のコンソールログにレポート閲覧用URLを出力
+    # Actionsのビルドログ（Console Output）からワンクリックでテスト結果へアクセスできます
+    - name: Output Report URL to Log
+      if: always()
+      run: |
+        echo "======================================================="
+        echo "🎭 Post-Deploy Playwright Test Report URL:"
+        echo "${{ needs.deploy.outputs.page_url }}main-deploy-report/"
+        echo "======================================================="
 
     - name: Upload Test Report Artifact
       if: always()

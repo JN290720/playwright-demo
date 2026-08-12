@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
 
 permissions:
-  contents: read
+  contents: write # 💡 レポート用gh-pages更新のために write に変更
   pull-requests: write
 
 jobs:
@@ -26,6 +26,16 @@ jobs:
       id: run-tests
       run: npx playwright test
 
+    # 💡 [追加] テスト結果（HTMLレポート）を GitHub Pages (gh-pages ブランチ) へ自動デプロイ
+    # 成功・失敗を問わず常に実行され、PR番号ごとのフォルダに保存されます
+    - name: Deploy Playwright Report to GitHub Pages
+      if: always()
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./playwright-report
+        destination_dir: pr-reports/${{ github.event.number }} # PR番号ごとにディレクトリを分けて保存
+
     # PR画面へのテスト結果自動コメント
     - name: Comment PR with Test Status
       if: always()
@@ -33,7 +43,13 @@ jobs:
       with:
         script: |
           const status = '${{ steps.run-tests.outcome }}' === 'success' ? '✅ PASSED' : '❌ FAILED';
-          const body = `### 🎭 Playwright Test Results (PR Check)\n**Status:** ${status}\n**PR Branch:** \`${context.payload.pull_request.head.ref}\``;
+          // 💡 [追加] 該当PR専用のレポート閲覧用URLを生成
+          const reportUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/pr-reports/${context.issue.number}/`;
+          
+          const body = `### 🎭 Playwright Test Results (PR Check)\n` +
+                       `**Status:** ${status}\n` +
+                       `**PR Branch:** \`${context.payload.pull_request.head.ref}\` \n` +
+                       `**📊 HTML Report:** [View Test Report](${reportUrl})`;
           
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
@@ -51,6 +67,7 @@ jobs:
               owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body: body
             });
           }
+
     # テスト結果（HTMLレポート）の保存（成功・失敗問わず常に実行）
     - name: Upload Playwright Report Artifact
       if: always()
