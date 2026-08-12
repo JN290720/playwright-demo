@@ -10,7 +10,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  pull-requests: write # ← PRコメント作成のために権限を追加
+  pull-requests: write # PRコメント作成用の権限
 
 concurrency:
   group: "pages"
@@ -34,13 +34,12 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
 
-    # steps.test.outcome を参照するために id: test を付与
     - name: Run Playwright tests
       id: test
       run: npx playwright test
       continue-on-error: true
 
-    # インデントを正しく修正したコメント投稿ステップ
+    # PRの場合のみ、テスト結果のサマリーをGitHubのPRコメントに投稿
     - name: Comment PR with Test Results
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v7
@@ -58,15 +57,20 @@ jobs:
             body: body
           });
 
+    # mainブランチの場合のみGitHub Pages用の準備を実行
     - name: Setup Pages
+      if: github.ref == 'refs/heads/main'
       uses: actions/configure-pages@v4
 
     - name: Upload artifact
+      if: github.ref == 'refs/heads/main'
       uses: actions/upload-pages-artifact@v3
       with:
         path: 'playwright-report/'
 
+  # mainブランチの場合のみGitHub Pagesへデプロイ
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
