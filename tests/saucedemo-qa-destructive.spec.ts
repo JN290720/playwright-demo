@@ -2,11 +2,22 @@ import { test, expect } from '@playwright/test';
 
 test.describe('7人のQAペルソナによる SauceDemo 破壊テスト', () => {
 
+  // 💡 各テストの実行前に「環境チェック」を行う
+  test.beforeEach(({}, testInfo) => {
+    // ENV_NAME が 'staging' でない場合はテストを自動スキップ
+    if (process.env.ENV_NAME !== 'staging') {
+      testInfo.skip(true, 'この破壊テスト群は Staging 環境限定です');
+    }
+  });
+
+  // ベースURLを環境変数から取得（未設定の場合はデフォルト値）
+  const baseUrl = process.env.BASE_URL || 'https://www.saucedemo.com';
+
   /**
    * P1 新人QA: 空送信・ロックアカウントでの誤ログイン
    */
   test('P1: ロックアウトされたユーザーや空の認証情報でエラーメッセージが表示されること', async ({ page }) => {
-    await page.goto('https://www.saucedemo.com/');
+    await page.goto(baseUrl);
 
     // 1. 空のままログインボタンを押す
     await page.locator('[data-test="login-button"]').click();
@@ -24,7 +35,7 @@ test.describe('7人のQAペルソナによる SauceDemo 破壊テスト', () => 
    * P2 ベテランQA: チェックアウト時の必須項目未入力チェック
    */
   test('P2: 購入手続きで配送先情報が空のまま「Continue」を押すとエラーが表示されること', async ({ page }) => {
-    await page.goto('https://www.saucedemo.com/');
+    await page.goto(baseUrl);
     await page.locator('[data-test="username"]').fill('standard_user');
     await page.locator('[data-test="password"]').fill('secret_sauce');
     await page.locator('[data-test="login-button"]').click();
@@ -46,10 +57,10 @@ test.describe('7人のQAペルソナによる SauceDemo 破壊テスト', () => 
    */
   test('P3: 未ログイン状態で保護されたページ（/inventory.html）に直接アクセスした際、拒否されること', async ({ page }) => {
     // ログインせず直接商品一覧ページへアクセスを試みる
-    await page.goto('https://www.saucedemo.com/inventory.html');
+    await page.goto(`${baseUrl}/inventory.html`);
 
     // ログイン画面にリダイレクトされ、不正アクセスエラーが表示されることを検証
-    await expect(page).toHaveURL('https://www.saucedemo.com/');
+    await expect(page).toHaveURL(`${baseUrl}/`);
     await expect(page.locator('[data-test="error"]')).toContainText("You can only access '/inventory.html' when you are logged in.");
   });
 
@@ -57,7 +68,7 @@ test.describe('7人のQAペルソナによる SauceDemo 破壊テスト', () => 
    * P4 データ整合QA: カート追加後の「Remove」トグルと合計カウントの整合性
    */
   test('P4: 商品追加・削除時にカートバッジのカウント数値が整合していること', async ({ page }) => {
-    await page.goto('https://www.saucedemo.com/');
+    await page.goto(baseUrl);
     await page.locator('[data-test="username"]').fill('standard_user');
     await page.locator('[data-test="password"]').fill('secret_sauce');
     await page.locator('[data-test="login-button"]').click();
@@ -82,7 +93,7 @@ test.describe('7人のQAペルソナによる SauceDemo 破壊テスト', () => 
    * P5 移行/互換性QA: Cookie/SessionStorage 消去時のログアウト強制挙動
    */
   test('P5: セッション（Cookie/Storage）が破棄された状態で操作した際、ログイン画面に戻されること', async ({ page }) => {
-    await page.goto('https://www.saucedemo.com/');
+    await page.goto(baseUrl);
     await page.locator('[data-test="username"]').fill('standard_user');
     await page.locator('[data-test="password"]').fill('secret_sauce');
     await page.locator('[data-test="login-button"]').click();
@@ -99,7 +110,7 @@ test.describe('7人のQAペルソナによる SauceDemo 破壊テスト', () => 
    * P6 回帰QA: サイドメニューからのログアウト機能が破綻していないか
    */
   test('P6: ハンバーガーメニューからの「Logout」が正常に動作し、戻るボタンでも再侵入できないこと', async ({ page }) => {
-    await page.goto('https://www.saucedemo.com/');
+    await page.goto(baseUrl);
     await page.locator('[data-test="username"]').fill('standard_user');
     await page.locator('[data-test="password"]').fill('secret_sauce');
     await page.locator('[data-test="login-button"]').click();
@@ -108,7 +119,7 @@ test.describe('7人のQAペルソナによる SauceDemo 破壊テスト', () => 
     await page.locator('#react-burger-menu-btn').click();
     await page.locator('[data-test="logout-sidebar-link"]').click();
 
-    await expect(page).toHaveURL('https://www.saucedemo.com/');
+    await expect(page).toHaveURL(`${baseUrl}/`);
 
     // ブラウザの「戻る」ボタンを押しても再侵入できないこと
     await page.goBack();
@@ -119,7 +130,7 @@ test.describe('7人のQAペルソナによる SauceDemo 破壊テスト', () => 
    * P7 仕様懐疑QA: バグを含むアカウント（problem_user）での表示不整合検知
    */
   test('P7: problem_user でログインした際、商品画像が崩れている異常を検知できること', async ({ page }) => {
-    await page.goto('https://www.saucedemo.com/');
+    await page.goto(baseUrl);
     // 仕様で画像崩れが埋め込まれているテスト用アカウント
     await page.locator('[data-test="username"]').fill('problem_user');
     await page.locator('[data-test="password"]').fill('secret_sauce');

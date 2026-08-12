@@ -1,12 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+import path from 'path';
 
 /**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
+ * 💡 コマンドラインから ENV を取得（未指定の場合はデフォルトで 'prod'）
+ * 例: ENV=staging npx playwright test -> .env.staging を読み込む
  */
-// import dotenv from 'dotenv';
-// import path from 'path';
-// dotenv.config({ path: path.resolve(__dirname, '.env') });
+const env = process.env.ENV || 'prod';
+dotenv.config({ path: path.resolve(__dirname, `.env.${env}`) });
+
+console.log(`[Playwright Config] 環境ファイル (.env.${env}) を読み込みました (ENV_NAME: ${process.env.ENV_NAME || '未設定'})`);
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -25,14 +28,14 @@ export default defineConfig({
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
-     baseURL: 'http://localhost:3000',
+    /* 💡 環境ファイル内の BASE_URL を使用（未設定なら http://localhost:3000 にフォールバック） */
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
 
-  /* 失敗時の自動証拠収集設定 */
+    /* 失敗時の自動証拠収集設定 */
     trace: 'on-first-retry', // 失敗してリトライした時に詳細な操作ログ（Trace Viewer）を保存
     screenshot: 'only-on-failure', // テスト失敗時のみ画面キャプチャを自動取得
     video: 'retain-on-failure',   // テスト失敗時のみ動画（MP4）を自動保存
-    },
+  },
 
   /* Configure projects for major browsers */
   projects: [
