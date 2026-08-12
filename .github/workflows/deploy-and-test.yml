@@ -48,31 +48,44 @@ jobs:
         BASE_URL: ${{ needs.deploy.outputs.page_url }}
       run: npx playwright test
 
-    # 💡 [修正] 実行ID（run_id）ごとの専用フォルダにレポートを自動デプロイ
-    # keep_files: true を追加することで、過去のテストレポートを削除せず残せます
-    - name: Deploy Playwright Report to GitHub Pages
+    # 💡 1. 過去ログ用（実行ID別フォルダ）への蓄積保存
+    # keep_files: true で過去の実行結果を削除せずに残します
+    - name: Deploy Historical Report to GitHub Pages
       if: always()
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./playwright-report
-        destination_dir: main-test-${{ github.run_id }} # 👈 実行IDごとの固有フォルダ（例: main-test-12345678）
-        keep_files: true # 👈 過去のテスト結果を消さずに残す設定
+        destination_dir: main-test-${{ github.run_id }}
+        keep_files: true
 
-    # 💡 [変更] ワークフローの「Summary（概要）」画面およびログにレポート閲覧用URLを出力
+    # 💡 2. 最新用（固定フォルダ main-deploy-report）への上書き更新
+    # keep_files: true を併用することで、他のフォルダ（main-test-*）を消さずに最新レポートのみ上書きします
+    - name: Deploy Latest Report to GitHub Pages
+      if: always()
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./playwright-report
+        destination_dir: main-deploy-report
+        keep_files: true
+
+    # 💡 ワークフローの「Summary（概要）」画面およびログに最新＆今回の固有URLを両方出力
     - name: Output Report URL to Summary & Log
       if: always()
       run: |
         # 1. 従来のログ（Console Output）への出力
         echo "======================================================="
-        echo "🎭 Post-Deploy Playwright Test Report URL (Run #${{ github.run_id }}):"
+        echo "🎭 Latest Test Report URL:"
+        echo "${{ needs.deploy.outputs.page_url }}main-deploy-report/"
+        echo "🎭 Run #${{ github.run_id }} Test Report URL:"
         echo "${{ needs.deploy.outputs.page_url }}main-test-${{ github.run_id }}/"
         echo "======================================================="
 
-        # 2. 💡 Actions 実行結果画面の Summary へ出力
-        echo "## 🎭 Playwright Test Report" >> $GITHUB_STEP_SUMMARY
-        echo "**Run ID:** \`#${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "📊 **[View Post-Deploy Test Report](${{ needs.deploy.outputs.page_url }}main-test-${{ github.run_id }}/)**" >> $GITHUB_STEP_SUMMARY
+        # 2. Actions 実行結果画面の Summary へ出力
+        echo "## 🎭 Playwright Test Reports" >> $GITHUB_STEP_SUMMARY
+        echo "🌟 **[最新のテストレポートを見る（ブックマーク用）](${{ needs.deploy.outputs.page_url }}main-deploy-report/)**" >> $GITHUB_STEP_SUMMARY
+        echo "📜 **[今回の実行結果のみ見る (#${{ github.run_id }})](${{ needs.deploy.outputs.page_url }}main-test-${{ github.run_id }}/)**" >> $GITHUB_STEP_SUMMARY
 
     - name: Upload Test Report Artifact
       if: always()
