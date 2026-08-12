@@ -21,15 +21,15 @@ npm ci
 npx playwright install --with-deps
 ```
 ### 2. テストの実行
-# すべての E2E テストを実行
+#### すべての E2E テストを実行
 ```
 npx playwright test
 ```
-# UI モードでテストを実行（デバッグ用）
+#### UI モードでテストを実行（デバッグ用）
 ```
 npx playwright test --ui
 ```
-# テスト結果の HTML レポートを表示
+#### テスト結果の HTML レポートを表示
 ```
 npx playwright show-report
 ```
