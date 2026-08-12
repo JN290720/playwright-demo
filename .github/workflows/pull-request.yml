@@ -1,0 +1,61 @@
+name: PR Test
+
+on:
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v5
+      with:
+        node-version: lts/*
+    - name: Install dependencies
+      run: npm ci
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+
+    - name: Run Playwright tests
+      id: run-tests
+      run: npx playwright test
+
+    # PR画面へのテスト結果自動コメント
+    - name: Comment PR with Test Status
+      if: always()
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const status = '${{ steps.run-tests.outcome }}' === 'success' ? '✅ PASSED' : '❌ FAILED';
+          const body = `### 🎭 Playwright Test Results (PR Check)\n**Status:** ${status}\n**PR Branch:** \`${context.payload.pull_request.head.ref}\``;
+          
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          const botComment = comments.find(c => c.body.includes('Playwright Test Results'));
+          
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner, repo: context.repo.repo, comment_id: botComment.id, body: body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body: body
+            });
+          }
+    # テスト結果（HTMLレポート）の保存（成功・失敗問わず常に実行）
+    - name: Upload Playwright Report Artifact
+      if: always()
+      uses: actions/upload-artifact@v5
+      with:
+        name: pr-playwright-report
+        path: playwright-report/
+        retention-days: 7
