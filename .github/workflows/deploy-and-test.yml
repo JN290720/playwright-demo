@@ -26,7 +26,7 @@ jobs:
         path: '.' 
     - name: Deploy to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@v4
+      uses: actions/deploy-pages@v5
 
   # STEP 2: デプロイ完了後、実際に公開された URL に対して Playwright を実行
   post-deploy-test:
