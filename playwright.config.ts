@@ -26,9 +26,9 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
-    // baseURL: 'http://localhost:3000',
+     baseURL: 'http://localhost:3000',
 
-/* 失敗時の自動証拠収集設定 */
+  /* 失敗時の自動証拠収集設定 */
     trace: 'on-first-retry', // 失敗してリトライした時に詳細な操作ログ（Trace Viewer）を保存
     screenshot: 'only-on-failure', // テスト失敗時のみ画面キャプチャを自動取得
     video: 'retain-on-failure',   // テスト失敗時のみ動画（MP4）を自動保存

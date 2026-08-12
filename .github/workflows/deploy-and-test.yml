@@ -1,19 +1,16 @@
-name: Playwright Tests (Post-Deployment)
+name: Deploy & Post-Deploy Test
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ main, master ] # mainにマージされた時のみ発火（PR時は動かない）
 
 permissions:
   contents: read
   pages: write
   id-token: write
-  pull-requests: write
 
 jobs:
-  # STEP 1: まず GitHub Pages へデプロイする
+  # STEP 1: GitHub Pages へデプロイ
   deploy:
     runs-on: ubuntu-latest
     environment:
@@ -22,24 +19,23 @@ jobs:
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: actions/configure-pages@v5
     - uses: actions/upload-pages-artifact@v3
       with:
-        # デプロイ対象の静的ファイルフォルダ
         path: '.' 
     - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
 
-  # STEP 2: デプロイ完了後、実際に公開された URL に対して Playwright テストを実行
+  # STEP 2: デプロイ完了後、実際に公開された URL に対して Playwright を実行
   post-deploy-test:
-    needs: deploy # deploy ジョブが成功した後にのみ実行
+    needs: deploy
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/checkout@v5
+    - uses: actions/setup-node@v5
       with:
         node-version: lts/*
     - name: Install dependencies
@@ -48,17 +44,14 @@ jobs:
       run: npx playwright install --with-deps
       
     - name: Run Playwright tests against deployed site
-      id: run-tests
-      # 環境変数として、デプロイ先の本番/STG URLをPlaywrightに引き渡す
       env:
         BASE_URL: ${{ needs.deploy.outputs.page_url }}
       run: npx playwright test
 
-    # 結果レポートを保存
     - name: Upload Test Report Artifact
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
-        name: playwright-report
+        name: post-deploy-playwright-report
         path: playwright-report/
         retention-days: 7
