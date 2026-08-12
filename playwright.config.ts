@@ -2,14 +2,16 @@ import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
 import path from 'path';
 
-/**
- * 💡 コマンドラインから ENV を取得（未指定の場合はデフォルトで 'prod'）
- * 例: ENV=staging npx playwright test -> .env.staging を読み込む
- */
+// ENV の取得（デフォルトは prod）
 const env = process.env.ENV || 'prod';
-dotenv.config({ path: path.resolve(__dirname, `.env.${env}`) });
 
-console.log(`[Playwright Config] 環境ファイル (.env.${env}) を読み込みました (ENV_NAME: ${process.env.ENV_NAME || '未設定'})`);
+// 💡 process.cwd() でプロジェクトルートの .env.<ENV> を確実に参照
+dotenv.config({
+  path: path.join(process.cwd(), `.env.${env}`),
+  override: true,
+});
+
+console.log(`[Playwright Config] 読み込んだ環境: .env.${env} / ENV_NAME=${process.env.ENV_NAME}`)
 
 /**
  * See https://playwright.dev/docs/test-configuration.

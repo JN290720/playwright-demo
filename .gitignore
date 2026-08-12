@@ -15,5 +15,5 @@ blob-report/
 
 # 環境ファイル
 .env
-.env.*
-!.env.example   # サンプル用ファイルだけは共有したい場合に残す設定
+!.env.staging
+!.env.prod
