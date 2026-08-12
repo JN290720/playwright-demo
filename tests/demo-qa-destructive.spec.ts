@@ -2,8 +2,16 @@ import { test, expect } from '@playwright/test';
 
 test.describe('7人のQAペルソナによる意地悪な破壊的 E2E テスト', () => {
 
-  test.beforeEach(async ({ page }) => {
-    await page.goto('https://demo.playwright.dev/todomvc/');
+  // 💡 各テストの実行前に「環境チェック」を行う
+  test.beforeEach(async ({ page }, testInfo) => {
+    // ENV_NAME が 'staging' でない場合はテストを自動スキップ
+    if (process.env.ENV_NAME !== 'staging') {
+      testInfo.skip(true, 'この E2E 破壊テスト群は Staging 環境限定です');
+    }
+
+    // ベースURLを環境変数から取得（未設定の場合はデフォルト値）
+    const baseUrl = process.env.BASE_URL || 'https://demo.playwright.dev/todomvc/';
+    await page.goto(baseUrl);
   });
 
   /**
@@ -87,6 +95,8 @@ test.describe('7人のQAペルソナによる意地悪な破壊的 E2E テスト
    * P5 移行QA: 過去の異形データや壊れた LocalStorage データが存在する場合の挙動
    */
   test('P5: 既存のデータ（LocalStorage）がブラウザに残っている状態から正常に読み込めること', async ({ page }) => {
+    const baseUrl = process.env.BASE_URL || 'https://demo.playwright.dev/todomvc/';
+
     // ページ読み込み前に直接 LocalStorage へ過去データを注入
     await page.addInitScript(() => {
       const mockData = [
@@ -96,8 +106,8 @@ test.describe('7人のQAペルソナによる意地悪な破壊的 E2E テスト
       localStorage.setItem('react-todos', JSON.stringify(mockData));
     });
 
-    // 注入後にページへアクセス
-    await page.goto('https://demo.playwright.dev/todomvc/');
+    // 注入後にページへ再アクセス
+    await page.goto(baseUrl);
 
     // 旧データが崩れずに画面に復元されていることを確認
     const items = page.getByTestId('todo-title');

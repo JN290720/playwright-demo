@@ -27,8 +27,10 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
       
+    # 💡 ENV: prod を明示指定（本番環境なので Staging 限定テストはスキップされる）
     - name: Run Playwright tests
       env:
+        ENV: prod
         BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
       run: npx playwright test
 

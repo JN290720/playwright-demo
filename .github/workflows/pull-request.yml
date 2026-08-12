@@ -22,8 +22,11 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
 
+    # 💡 ENV: staging を追加（PR時は全テストをフル実行）
     - name: Run Playwright tests
       id: run-tests
+      env:
+        ENV: staging
       run: npx playwright test
 
     # 💡 [追加] テスト結果（HTMLレポート）を GitHub Pages (gh-pages ブランチ) へ自動デプロイ
