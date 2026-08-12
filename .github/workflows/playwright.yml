@@ -1,4 +1,4 @@
-name: Playwright Tests
+name: Playwright Tests (Post-Deployment)
 
 on:
   push:
@@ -10,19 +10,36 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  pull-requests: write # PRへのコメント投稿に必要な権限
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  pull-requests: write
 
 jobs:
-  test:
+  # STEP 1: まず GitHub Pages へデプロイする
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/configure-pages@v5
+    - uses: actions/upload-pages-artifact@v3
+      with:
+        # デプロイ対象の静的ファイルフォルダ
+        path: '.' 
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  # STEP 2: デプロイ完了後、実際に公開された URL に対して Playwright テストを実行
+  post-deploy-test:
+    needs: deploy # deploy ジョブが成功した後にのみ実行
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
-    - uses: actions/setup-node@v5
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
       with:
         node-version: lts/*
     - name: Install dependencies
@@ -30,68 +47,18 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
       
-    - name: Run Playwright tests
+    - name: Run Playwright tests against deployed site
       id: run-tests
+      # 環境変数として、デプロイ先の本番/STG URLをPlaywrightに引き渡す
+      env:
+        BASE_URL: ${{ needs.deploy.outputs.page_url }}
       run: npx playwright test
 
-    # PR時にテスト結果のコメントを自動投稿するステップ
-    - name: Comment PR with Test Status
-      if: github.event_name == 'pull_request' && always()
-      uses: actions/github-script@v8
-      with:
-        script: |
-          const status = '${{ steps.run-tests.outcome }}' === 'success' ? '✅ PASSED' : '❌ FAILED';
-          const body = `### 🎭 Playwright Test Results\n**Status:** ${status}\n**PR Branch:** \`${context.payload.pull_request.head.ref}\``;
-          
-          // 既存のコメントを探して更新、なければ新規作成
-          const { data: comments } = await github.rest.issues.listComments({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number,
-          });
-          const botComment = comments.find(c => c.body.includes('Playwright Test Results'));
-          
-          if (botComment) {
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: botComment.id,
-              body: body
-            });
-          } else {
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: body
-            });
-          }
-
-    # ① 手動ダウンロード用のレポート保存（成功・失敗問わず常に実行）
-    - name: Upload Playwright Report Artifact
+    # 結果レポートを保存
+    - name: Upload Test Report Artifact
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v4
       with:
         name: playwright-report
         path: playwright-report/
         retention-days: 7
-
-    # ② GitHub Pages デプロイ専用のアーティファクト作成（mainブランチかつテスト成功時のみ）
-    - name: Upload Pages Artifact
-      if: github.ref == 'refs/heads/main' && success()
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: playwright-report/
-
-  deploy:
-    # mainブランチかつ test ジョブが成功したときだけ実行
-    if: github.ref == 'refs/heads/main'
-    needs: test
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
