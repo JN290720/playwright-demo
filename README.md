@@ -17,14 +17,11 @@
 
 ### 1. 依存関係のインストール
 
-```bash
 npm ci
 npx playwright install --with-deps
-```
 
 ### 2. テストの実行
 
-```Bash
 # すべての E2E テストを実行
 npx playwright test
 
@@ -33,4 +30,24 @@ npx playwright test --ui
 
 # テスト結果の HTML レポートを表示
 npx playwright show-report
-```
+
+---
+
+## 🔄 CI/CD パイプライン (GitHub Actions)
+
+本リポジトリでは、用途に応じて 2 つのワークフローを自動実行しています。
+
+| ワークフロー名 | 発火タイミング | 役割 |
+| :--- | :--- | :--- |
+| **PR Test** (`pull-request.yml`) | Pull Request 作成・更新時 | 事前検証テストの実行と PR 画面への結果自動コメント |
+| **Deploy & Post-Deploy Test** (`deploy-and-test.yml`) | `main` ブランチへの Push / Merge 時 | GitHub Pages へのデプロイと、**公開後の本番 URL に対する自動 E2E テスト実行** |
+
+---
+
+## 📝 開発フローとブランチ戦略
+
+1. 機能追加・修正時は `main` ブランチから作業ブランチを作成（例: `fix/xxx`, `feature/xxx`）
+2. ローカルでテスト（`npx playwright test`）を実行して問題ないことを確認
+3. PR を作成（自動で `.github/PULL_REQUEST_TEMPLATE.md` が適応されます）
+4. CI のチェック（`PR Test`）が通過したことを確認して `main` へマージ
+5. マージ後、自動でデプロイおよび公開後テストが実行されます
