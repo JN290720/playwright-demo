@@ -48,24 +48,24 @@ jobs:
         BASE_URL: ${{ needs.deploy.outputs.page_url }}
       run: npx playwright test
 
-    # 💡 [追加] テスト結果（HTMLレポート）を GitHub Pages (gh-pages ブランチ) へ自動デプロイ
-    # 成功・失敗を問わず常に実行され、ブラウザからURL直叩きでレポートを直接閲覧できるようにします
+    # 💡 [修正] 実行ID（run_id）ごとの専用フォルダにレポートを自動デプロイ
+    # keep_files: true を追加することで、過去のテストレポートを削除せず残せます
     - name: Deploy Playwright Report to GitHub Pages
       if: always()
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./playwright-report
-        destination_dir: main-deploy-report # mainブランチの最新本番テストレポートとして保存
+        destination_dir: main-test-${{ github.run_id }} # 👈 実行IDごとの固有フォルダ（例: main-test-12345678）
+        keep_files: true # 👈 過去のテスト結果を消さずに残す設定
 
-    # 💡 [追加] 実行完了時のコンソールログにレポート閲覧用URLを出力
-    # Actionsのビルドログ（Console Output）からワンクリックでテスト結果へアクセスできます
+    # 💡 [修正] その回のテスト結果に直接アクセスできる URL をログに出力
     - name: Output Report URL to Log
       if: always()
       run: |
         echo "======================================================="
-        echo "🎭 Post-Deploy Playwright Test Report URL:"
-        echo "${{ needs.deploy.outputs.page_url }}main-deploy-report/"
+        echo "🎭 Post-Deploy Playwright Test Report URL (Run #${{ github.run_id }}):"
+        echo "${{ needs.deploy.outputs.page_url }}main-test-${{ github.run_id }}/"
         echo "======================================================="
 
     - name: Upload Test Report Artifact
