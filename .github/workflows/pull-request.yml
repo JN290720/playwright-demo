@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: actions/setup-node@v4
       with:
         node-version: lts/*
@@ -29,7 +29,7 @@ jobs:
     # PR画面へのテスト結果自動コメント
     - name: Comment PR with Test Status
       if: always()
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         script: |
           const status = '${{ steps.run-tests.outcome }}' === 'success' ? '✅ PASSED' : '❌ FAILED';
@@ -54,7 +54,7 @@ jobs:
     # テスト結果（HTMLレポート）の保存（成功・失敗問わず常に実行）
     - name: Upload Playwright Report Artifact
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: pr-playwright-report
         path: playwright-report/

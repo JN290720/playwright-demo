@@ -19,14 +19,14 @@ jobs:
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
-    - uses: actions/checkout@v6
-    - uses: actions/configure-pages@v5
+    - uses: actions/checkout@v7
+    - uses: actions/configure-pages@v6
     - uses: actions/upload-pages-artifact@v3
       with:
         path: '.' 
     - name: Deploy to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@v4
+      uses: actions/deploy-pages@v5
 
   # STEP 2: デプロイ完了後、実際に公開された URL に対して Playwright を実行
   post-deploy-test:
@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
     - uses: actions/setup-node@v4
       with:
         node-version: lts/*
@@ -50,7 +50,7 @@ jobs:
 
     - name: Upload Test Report Artifact
       if: always()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: post-deploy-playwright-report
         path: playwright-report/
