@@ -10,6 +10,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  pull-requests: write # PRコメント作成用の権限
 
 concurrency:
   group: "pages"
@@ -19,6 +20,7 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+
     steps:
     - uses: actions/checkout@v4
 
@@ -33,18 +35,42 @@ jobs:
       run: npx playwright install --with-deps
 
     - name: Run Playwright tests
+      id: test
       run: npx playwright test
       continue-on-error: true
 
+    # PRの場合のみ、テスト結果のサマリーをGitHubのPRコメントに投稿
+    - name: Comment PR with Test Results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const outcome = '${{ steps.test.outcome }}';
+          const body = `### 🎭 Playwright Test Results
+          - **Status**: ${outcome === 'success' ? '✅ PASSED' : '❌ FAILED'}
+          - **PR Branch**: \`${process.env.GITHUB_HEAD_REF}\``;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
+
+    # mainブランチの場合のみGitHub Pages用の準備を実行
     - name: Setup Pages
+      if: github.ref == 'refs/heads/main'
       uses: actions/configure-pages@v4
 
     - name: Upload artifact
+      if: github.ref == 'refs/heads/main'
       uses: actions/upload-pages-artifact@v3
       with:
         path: 'playwright-report/'
 
+  # mainブランチの場合のみGitHub Pagesへデプロイ
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
