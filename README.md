@@ -16,7 +16,7 @@
 ## 📊 テストレポートの確認方法
 
 - **本番（main）ブランチの最新テスト結果**  
-  [👉 最新の Post-Deploy テストレポートを見る](https://<ユーザー名>.github.io/<リポジトリ名>/main-deploy-report/)  
+  [👉 最新の Post-Deploy テストレポートを見る](https://jn290720.github.io/playwright-demo/main-deploy-report/)  
   *(※ main ブランチへマージ・デプロイされた後に自動更新されます)*
 
 - **Pull Request ごとのテスト結果**  
