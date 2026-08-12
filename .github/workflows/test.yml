@@ -1,0 +1,75 @@
+name: Post-Deploy Test
+
+on:
+  workflow_run:
+    workflows: ["Deploy App"] # 👈 上のデプロイワークフロー名を指定
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  post-deploy-test:
+    # 💡 デプロイが成功した場合のみ実行する
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+    - name: Install dependencies
+      run: npm ci
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+      
+    - name: Run Playwright tests
+      env:
+        BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+      run: npx playwright test
+
+    # 1. 過去ログ用（実行ID別）への保存
+    - name: Deploy Historical Report to GitHub Pages
+      if: always()
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./playwright-report
+        destination_dir: main-test-${{ github.run_id }}
+        keep_files: true
+
+    # 2. 最新用（固定 URL）への上書き更新
+    - name: Deploy Latest Report to GitHub Pages
+      if: always()
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./playwright-report
+        destination_dir: main-deploy-report
+        keep_files: true
+
+    - name: Output Report URL to Summary & Log
+      if: always()
+      run: |
+        echo "======================================================="
+        echo "🎭 Latest Test Report URL:"
+        echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-deploy-report/"
+        echo "🎭 Run #${{ github.run_id }} Test Report URL:"
+        echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-test-${{ github.run_id }}/"
+        echo "======================================================="
+
+        echo "## 🎭 Playwright Test Reports" >> $GITHUB_STEP_SUMMARY
+        echo "🌟 **[最新のテストレポートを見る（ブックマーク用）](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-deploy-report/)**" >> $GITHUB_STEP_SUMMARY
+        echo "📜 **[今回の実行結果のみ見る (#${{ github.run_id }})](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-test-${{ github.run_id }}/)**" >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload Test Report Artifact
+      if: always()
+      uses: actions/upload-artifact@v5
+      with:
+        name: post-deploy-playwright-report
+        path: playwright-report/
+        retention-days: 7
