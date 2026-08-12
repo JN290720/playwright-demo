@@ -10,6 +10,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  pull-requests: write # ← PRコメント作成のために権限を追加
 
 concurrency:
   group: "pages"
@@ -19,6 +20,7 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+
     steps:
     - uses: actions/checkout@v4
 
@@ -32,27 +34,29 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
 
+    # steps.test.outcome を参照するために id: test を付与
     - name: Run Playwright tests
+      id: test
       run: npx playwright test
       continue-on-error: true
 
-        # PRの場合のみ、テスト結果のサマリーをGitHubのPRコメントに投稿
+    # インデントを正しく修正したコメント投稿ステップ
     - name: Comment PR with Test Results
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v7
       with:
-      script: |
-        const outcome = '${{ steps.test.outcome }}';
-        const body = `### 🎭 Playwright Test Results
-        - **Status**: ${outcome === 'success' ? '✅ PASSED' : '❌ FAILED'}
-        - **PR Branch**: \`${process.env.GITHUB_HEAD_REF}\``;
-              
-        github.rest.issues.createComment({
-          issue_number: context.issue.number,
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          body: body
-        });
+        script: |
+          const outcome = '${{ steps.test.outcome }}';
+          const body = `### 🎭 Playwright Test Results
+          - **Status**: ${outcome === 'success' ? '✅ PASSED' : '❌ FAILED'}
+          - **PR Branch**: \`${process.env.GITHUB_HEAD_REF}\``;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
 
     - name: Setup Pages
       uses: actions/configure-pages@v4
