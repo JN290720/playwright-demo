@@ -7,9 +7,9 @@ import path from 'path';
  * 例: ENV=staging npx playwright test -> .env.staging を読み込む
  */
 const env = process.env.ENV || 'prod';
-dotenv.config({ path: path.resolve(__dirname, `.env.${env}`) });
+dotenv.config({ path: path.resolve(__dirname, `.env.${env}`), override: true });
 
-console.log(`[Playwright Config] 環境ファイル (.env.${env}) を読み込みました (ENV_NAME: ${process.env.ENV_NAME || '未設定'})`);
+console.log(`[Playwright Config] 読み込んだ環境: .env.${env} / ENV_NAME=${process.env.ENV_NAME}`);
 
 /**
  * See https://playwright.dev/docs/test-configuration.
