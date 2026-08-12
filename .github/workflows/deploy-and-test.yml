@@ -59,14 +59,20 @@ jobs:
         destination_dir: main-test-${{ github.run_id }} # 👈 実行IDごとの固有フォルダ（例: main-test-12345678）
         keep_files: true # 👈 過去のテスト結果を消さずに残す設定
 
-    # 💡 [修正] その回のテスト結果に直接アクセスできる URL をログに出力
-    - name: Output Report URL to Log
+    # 💡 [変更] ワークフローの「Summary（概要）」画面およびログにレポート閲覧用URLを出力
+    - name: Output Report URL to Summary & Log
       if: always()
       run: |
+        # 1. 従来のログ（Console Output）への出力
         echo "======================================================="
         echo "🎭 Post-Deploy Playwright Test Report URL (Run #${{ github.run_id }}):"
         echo "${{ needs.deploy.outputs.page_url }}main-test-${{ github.run_id }}/"
         echo "======================================================="
+
+        # 2. 💡 Actions 実行結果画面の Summary へ出力
+        echo "## 🎭 Playwright Test Report" >> $GITHUB_STEP_SUMMARY
+        echo "**Run ID:** \`#${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "📊 **[View Post-Deploy Test Report](${{ needs.deploy.outputs.page_url }}main-test-${{ github.run_id }}/)**" >> $GITHUB_STEP_SUMMARY
 
     - name: Upload Test Report Artifact
       if: always()
