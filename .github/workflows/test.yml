@@ -2,7 +2,7 @@ name: Post-Deploy Test
 
 on:
   workflow_run:
-    workflows: ["Deploy App"] # 👈 上のデプロイワークフロー名を指定
+    workflows: ["Deploy App"] # 💡 deploy.yml の name フィールドと完全一致させてください
     types:
       - completed
 
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   post-deploy-test:
-    # 💡 デプロイが成功した場合のみ実行する
+    # 💡 アプリのデプロイが成功した場合のみ実行
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     timeout-minutes: 60
     runs-on: ubuntu-latest
@@ -32,24 +32,24 @@ jobs:
         BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
       run: npx playwright test
 
-    # 1. 過去ログ用（実行ID別）への保存
-    - name: Deploy Historical Report to GitHub Pages
+    # 💡 1回のデプロイで済むよう、出力用フォルダに両方の階層構造を準備
+    - name: Prepare Report Directories
       if: always()
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./playwright-report
-        destination_dir: main-test-${{ github.run_id }}
-        keep_files: true
+      run: |
+        mkdir -p ./deploy-artifacts/main-test-${{ github.run_id }}
+        mkdir -p ./deploy-artifacts/main-deploy-report
+        
+        # 生成されたレポートを両方のディレクトリへコピー
+        cp -R ./playwright-report/* ./deploy-artifacts/main-test-${{ github.run_id }}/
+        cp -R ./playwright-report/* ./deploy-artifacts/main-deploy-report/
 
-    # 2. 最新用（固定 URL）への上書き更新
-    - name: Deploy Latest Report to GitHub Pages
+    # 💡 1回のデプロイアクションで両方のレポートを一括 push（Push競合を回避）
+    - name: Deploy All Reports to GitHub Pages
       if: always()
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./playwright-report
-        destination_dir: main-deploy-report
+        publish_dir: ./deploy-artifacts
         keep_files: true
 
     - name: Output Report URL to Summary & Log
