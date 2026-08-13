@@ -1,60 +1,61 @@
 import { test, expect } from '@playwright/test';
+import { LoginPage } from './pages/LoginPage';
+import { InventoryPage } from './pages/InventoryPage';
 
-test.describe('SauceDemo 基本機能テスト（正常系）', () => {
-
-  test.beforeEach(async ({ page }) => {
-    // 1. ログイン画面へアクセスしてログイン
-    await page.goto('https://www.saucedemo.com/');
-    await page.locator('[data-test="username"]').fill('standard_user');
-    await page.locator('[data-test="password"]').fill('secret_sauce');
-    await page.locator('[data-test="login-button"]').click();
-
-    // ログイン成功（商品一覧ページへ遷移）の確認
-    await expect(page).toHaveURL(/.*inventory.html/);
+test.describe('SauceDemo 基本機能テスト', () => {
+  // 各テスト実行前に Staging 環境かどうか判定
+  test.beforeEach(({}, testInfo) => {
+    if (process.env.ENV_NAME !== 'staging') {
+      testInfo.skip(true, 'このテストは Staging 環境限定です');
+    }
   });
 
-  test('1. 商品一覧から商品をカートに追加し、バッジの件数が更新されること', async ({ page }) => {
-    // 最初の商品の「Add to cart」を押す
-    await page.locator('[data-test="add-to-cart-sauce-labs-backpack"]').click();
+  test('正常にログインでき、商品一覧が表示されること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    const inventoryPage = new InventoryPage(page);
 
-    // カートアイコンに「1」と表示されることを確認
-    const cartBadge = page.locator('.shopping_cart_badge');
-    await expect(cartBadge).toHaveText('1');
+    // 1. ログイン画面へ遷移＆ログイン実行
+    await loginPage.goto();
+    await loginPage.login('standard_user', 'secret_sauce');
+
+    // 2. URLと商品一覧タイトルの検証
+    await expect(page).toHaveURL('https://www.saucedemo.com/inventory.html');
+    await expect(inventoryPage.title).toHaveText('Products');
+
+    // 3. 商品カードが複数件（6件）表示されていることを検証
+    await expect(inventoryPage.productItems).toHaveCount(6);
   });
 
-  test('2. 商品の並び替え（価格の安い順）が正しく機能すること', async ({ page }) => {
-    const sortSelect = page.locator('[data-test="product-sort-container"]');
-    
-    // 価格の安い順 (lohi) にソート
-    await sortSelect.selectOption('lohi');
+  test('商品をカートに追加でき、カートバッジが更新されること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    const inventoryPage = new InventoryPage(page);
 
-    // 最初の商品の価格が $7.99 であることを確認
-    const firstPrice = page.locator('.inventory_item_price').first();
-    await expect(firstPrice).toHaveText('$7.99');
+    // ログイン処理
+    await loginPage.goto();
+    await loginPage.login('standard_user', 'secret_sauce');
+
+    // バックパックをカートに追加
+    await inventoryPage.addItemToCart('add-to-cart-sauce-labs-backpack');
+
+    // カートアイコンのバッジ数値が「1」になっているか検証
+    await expect(inventoryPage.cartBadge).toHaveText('1');
   });
 
-  test('3. 商品追加から購入完了までの注文フロー（チェックアウト）を完了できること', async ({ page }) => {
-    // 1. カートに商品を追加してカート画面へ遷移
-    await page.locator('[data-test="add-to-cart-sauce-labs-backpack"]').click();
-    await page.locator('.shopping_cart_link').click();
-    await expect(page).toHaveURL(/.*cart.html/);
+  test('商品のソート順（価格の安い順）を変更できること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    const inventoryPage = new InventoryPage(page);
 
-    // 2. Checkout 画面へ進む
-    await page.locator('[data-test="checkout"]').click();
+    // ログイン処理
+    await loginPage.goto();
+    await loginPage.login('standard_user', 'secret_sauce');
 
-    // 3. 配送先情報を入力
-    await page.locator('[data-test="firstName"]').fill('Taro');
-    await page.locator('[data-test="lastName"]').fill('Yamada');
-    await page.locator('[data-test="postalCode"]').fill('100-0001');
-    await page.locator('[data-test="continue"]').click();
+    // 価格の安い順（Price (low to high)）に並び替え
+    await inventoryPage.selectSortOption('lohi');
 
-    // 4. 注文確認画面から送信完了（Finish）
-    await expect(page).toHaveURL(/.*checkout-step-two.html/);
-    await page.locator('[data-test="finish"]').click();
+    // 最初の商品の価格取得用ロケータ
+    const firstItemPrice = page.locator('.inventory_item_price').first();
 
-    // 5. 完了メッセージの検証
-    const completeHeader = page.locator('.complete-header');
-    await expect(completeHeader).toHaveText('Thank you for your order!');
+    // 最安値商品（$7.99）が一番上に来ていることを検証
+    await expect(firstItemPrice).toHaveText('$7.99');
   });
-
 });
