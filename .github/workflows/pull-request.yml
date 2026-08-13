@@ -11,7 +11,7 @@ on:
 permissions:
   contents: write      # VRT更新画像のGit Commit & Push、およびHTMLレポート（gh-pages）のデプロイ権限
   pull-requests: write # PR画面へのステータスコメント投稿・更新権限
-  issues: write        # issue_comment イベントでPRコメントを操作するための権限
+  issues: write        # issue_comment イベントでPRコメントおよびリアクションを操作するための権限
 
 jobs:
   test:
@@ -19,7 +19,7 @@ jobs:
     # 【実行条件の制御】
     # 1. 通常のPRイベント（作成・Push）時
     # 2. または、PRに対するコメント投稿であり、かつ本文に "/update-vrt" が含まれる時
-    # ※無関係なIssueコメントや通常のPRコメントでの無駄なActions起動を防ぐ
+    # ※無関係なIssueコメントや通常のPRコメントでの無駄なActions起動を防ぎます
     # -------------------------------------------------------------------------
     if: |
       github.event_name == 'pull_request' || 
@@ -29,6 +29,22 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      # -----------------------------------------------------------------------
+      # ステップ0: コメントへの受付スタンプ（👀 リアクション）付与
+      # -----------------------------------------------------------------------
+      # /update-vrt コマンドを受け取ったことをユーザーに伝えるため、即座に👀リアクションを追加します。
+      - name: Add Eyes Reaction to Command Comment
+        if: "github.event_name == 'issue_comment' && contains(github.event.comment.body, '/update-vrt')"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes'
+            });
+
       # -----------------------------------------------------------------------
       # ステップ1: 対象PRのブランチ名を動的に判別してチェックアウト
       # -----------------------------------------------------------------------
@@ -59,7 +75,7 @@ jobs:
       # -----------------------------------------------------------------------
       # ステップ2: テスト実行環境のセットアップ
       # -----------------------------------------------------------------------
-      # Node.js 環境のセットアップ
+      # Node.js 環境のセットアップ（LTSバージョン使用）
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -89,7 +105,7 @@ jobs:
       # ステップ3-B: 【コマンド実行時】VRT（視覚テスト）スナップショット画像の自動更新
       # -----------------------------------------------------------------------
       # コメントに "/update-vrt" が含まれている場合のみ実行。
-      # --update-snapshots フラグを付与して全環境（PC/スマホ）のベースライン画像を上書き更新します。
+      # --update-snapshots フラグを付与して対象環境（PC/スマホ）のベースライン画像を上書き更新します。
       - name: Update VRT Snapshots
         if: "contains(github.event.comment.body, '/update-vrt')"
         env:
@@ -100,8 +116,10 @@ jobs:
       # ステップ4: 【コマンド実行時】更新されたスナップショット画像の Git Commit & Push
       # -----------------------------------------------------------------------
       # /update-vrt 実行によって新しく生成・上書きされた画像ファイルをPRブランチへ自動コミットします。
+      # 差分がない場合もエラーにせず安全にスキップし、最新コミットSHAを出力変数に保存します。
       - name: Commit & Push updated snapshots
         if: "contains(github.event.comment.body, '/update-vrt')"
+        id: commit-vrt
         run: |
           # Gitコミット用のBotユーザー設定
           git config --global user.name "github-actions[bot]"
@@ -114,8 +132,14 @@ jobs:
           if ! git diff --staged --quiet; then
             git commit -m "chore(vrt): PC/スマホ全環境のVRTベースライン画像を自動更新 [skip ci]"
             git push
+            
+            # 最新のコミットハッシュ値と「変更あり」フラグを出力変数へ格納
+            NEW_SHA=$(git rev-parse HEAD)
+            echo "commit_sha=${NEW_SHA}" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
           else
             echo "No snapshot changes to commit."
+            echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
 
       # -----------------------------------------------------------------------
@@ -135,6 +159,7 @@ jobs:
       # ステップ6: PR画面への結果フィードバックコメント投稿
       # -----------------------------------------------------------------------
       # 状況に応じてPRコメント欄へ自動フィードバックを投稿・更新します。
+      # /update-vrt 完了時はコミット比較リンク付きの返信を投稿します。
       - name: Comment PR Status or VRT Reply
         if: always()
         uses: actions/github-script@v7
@@ -146,9 +171,22 @@ jobs:
             if (isVrtCommand) {
               // 💡 /update-vrt 完了時のレスポンス投稿
               const isSuccess = '${{ job.status }}' === 'success';
-              const replyBody = isSuccess
-                ? '📸 **PCおよびスマホ環境の VRT Snapshots を自動更新しました！**\n最新の画像をブランチにコミット＆Pushしました。再テストの完了をお待ちください。'
-                : '❌ **VRT Snapshots の自動更新に失敗しました。**\nActions ログをご確認ください。';
+              const hasChanges = '${{ steps.commit-vrt.outputs.has_changes }}' === 'true';
+              const commitSha = '${{ steps.commit-vrt.outputs.commit_sha }}';
+              
+              let replyBody = '';
+              if (isSuccess) {
+                if (hasChanges) {
+                  const commitUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${commitSha}`;
+                  replyBody = `📸 **PCおよびスマホ環境の VRT Snapshots を自動更新しました！**\n\n` +
+                              `🔗 **画像の更新差分:** [コミット結果を表示 (${commitSha.substring(0, 7)})](${commitUrl})\n\n` +
+                              `最新の画像をブランチにコミット＆Pushしました。再テストの完了をお待ちください。`;
+                } else {
+                  replyBody = `ℹ️ **VRT Snapshots に変更差分はありませんでした。**\n既存の画像と完全に一致しています。`;
+                }
+              } else {
+                replyBody = `❌ **VRT Snapshots の自動更新に失敗しました。**\nActions ログをご確認ください。`;
+              }
 
               await github.rest.issues.createComment({
                 owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber, body: replyBody
