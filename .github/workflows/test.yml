@@ -44,7 +44,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-playwright-post-deploy-${{ hashFiles('**/package-lock.json') }}
 
       # キャッシュがない初回のみ Chromium と WebKit、および必要な OS 依存ライブラリをインストール 
       # ※ Safari(WebKit) の実行には OS 側のシステムライブラリが必要なため --with-deps が必須です
