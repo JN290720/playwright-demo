@@ -39,22 +39,22 @@ export default defineConfig({
     video: 'retain-on-failure',   // テスト失敗時のみ動画（MP4）を自動保存
   },
 
-  /* Configure projects for major browsers */
+  /* CIの高速化・安定化のため Desktop Chrome (chromium) 1本に集約 */
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    // 💡 CI高速化・VRT判定の安定化のためコメントアウト（必要時に解除）
+    // {
+    //   name: 'firefox',
+    //   use: { ...devices['Desktop Firefox'] },
+    // },
+    // {
+    //   name: 'webkit',
+    //   use: { ...devices['Desktop Safari'] },
+    // },
 
     /* Test against mobile viewports. */
     // {
