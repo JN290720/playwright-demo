@@ -1,61 +1,86 @@
 import { test, expect } from '@playwright/test';
-import { LoginPage } from './pages/LoginPage';
-import { InventoryPage } from './pages/InventoryPage';
+import { TodoPage } from './pages/TodoPage';
 
-test.describe('SauceDemo 基本機能テスト', () => {
-  // 各テスト実行前に Staging 環境かどうか判定
-  test.beforeEach(({}, testInfo) => {
-    if (process.env.ENV_NAME !== 'staging') {
-      testInfo.skip(true, 'このテストは Staging 環境限定です');
-    }
+test.describe('TodoApp 基本機能テスト（正常系）', () => {
+  test.beforeEach(async ({ page }) => {
+    const todoPage = new TodoPage(page);
+    await todoPage.goto();
   });
 
-  test('正常にログインでき、商品一覧が表示されること', async ({ page }) => {
-    const loginPage = new LoginPage(page);
-    const inventoryPage = new InventoryPage(page);
+  test('1. 新しい Todo アイテムを登録できること', async ({ page }) => {
+    const todoPage = new TodoPage(page);
 
-    // 1. ログイン画面へ遷移＆ログイン実行
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
+    await todoPage.addTodo('買い物に行く');
 
-    // 2. URLと商品一覧タイトルの検証
-    await expect(page).toHaveURL('https://www.saucedemo.com/inventory.html');
-    await expect(inventoryPage.title).toHaveText('Products');
-
-    // 3. 商品カードが複数件（6件）表示されていることを検証
-    await expect(inventoryPage.productItems).toHaveCount(6);
+    await expect(todoPage.todoItems).toHaveCount(1);
+    await expect(todoPage.todoTitles.first()).toHaveText('買い物に行く');
   });
 
-  test('商品をカートに追加でき、カートバッジが更新されること', async ({ page }) => {
-    const loginPage = new LoginPage(page);
-    const inventoryPage = new InventoryPage(page);
+  test('2. Todo の完了状態をチェックボックスで切り替えられること', async ({ page }) => {
+    const todoPage = new TodoPage(page);
 
-    // ログイン処理
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
+    await todoPage.addTodo('部屋の掃除');
+    await todoPage.toggleTodo(0);
 
-    // バックパックをカートに追加
-    await inventoryPage.addItemToCart('add-to-cart-sauce-labs-backpack');
-
-    // カートアイコンのバッジ数値が「1」になっているか検証
-    await expect(inventoryPage.cartBadge).toHaveText('1');
+    // 完了状態（completed クラスが付与）になっているか確認
+    await expect(todoPage.todoItems.first()).toHaveClass(/completed/);
   });
 
-  test('商品のソート順（価格の安い順）を変更できること', async ({ page }) => {
-    const loginPage = new LoginPage(page);
-    const inventoryPage = new InventoryPage(page);
+  test('3. Todo のタイトルをダブルクリックで編集・保存できること', async ({ page }) => {
+    const todoPage = new TodoPage(page);
 
-    // ログイン処理
-    await loginPage.goto();
-    await loginPage.login('standard_user', 'secret_sauce');
+    await todoPage.addTodo('編集前のタスク');
 
-    // 価格の安い順（Price (low to high)）に並び替え
-    await inventoryPage.selectSortOption('lohi');
+    // ダブルクリックで編集モードにして更新
+    await todoPage.todoTitles.first().dblclick();
+    const editInput = page.locator('.editing .edit');
+    await editInput.fill('編集後のタスク');
+    await editInput.press('Enter');
 
-    // 最初の商品の価格取得用ロケータ
-    const firstItemPrice = page.locator('.inventory_item_price').first();
+    await expect(todoPage.todoTitles.first()).toHaveText('編集後のタスク');
+  });
 
-    // 最安値商品（$7.99）が一番上に来ていることを検証
-    await expect(firstItemPrice).toHaveText('$7.99');
+  test('4. Todo をホバーして削除ボタン（×）で削除できること', async ({ page }) => {
+    const todoPage = new TodoPage(page);
+
+    await todoPage.addTodo('削除予定のタスク');
+
+    // ホバーして削除ボタンを表示させてクリック
+    await todoPage.todoItems.first().hover();
+    await todoPage.todoItems.first().getByRole('button', { name: 'Delete' }).click();
+
+    await expect(todoPage.todoItems).toHaveCount(0);
+  });
+
+  test('5. フィルター（All / Active / Completed）で絞り込めること', async ({ page }) => {
+    const todoPage = new TodoPage(page);
+
+    await todoPage.addTodo('未完了タスク');
+    await todoPage.addTodo('完了タスク');
+    await todoPage.toggleTodo(1);
+
+    // Completed フィルター
+    await page.getByRole('link', { name: 'Completed' }).click();
+    await expect(todoPage.todoItems).toHaveCount(1);
+    await expect(todoPage.todoTitles.first()).toHaveText('完了タスク');
+
+    // Active フィルター
+    await page.getByRole('link', { name: 'Active' }).click();
+    await expect(todoPage.todoItems).toHaveCount(1);
+    await expect(todoPage.todoTitles.first()).toHaveText('未完了タスク');
+  });
+
+  test('6. 「Clear completed」ボタンで完了済みタスクを一括削除できること', async ({ page }) => {
+    const todoPage = new TodoPage(page);
+
+    await todoPage.addTodo('残すタスク');
+    await todoPage.addTodo('消すタスク');
+    await todoPage.toggleTodo(1);
+
+    // 完了済み一括削除ボタンを押下
+    await page.getByRole('button', { name: 'Clear completed' }).click();
+
+    await expect(todoPage.todoItems).toHaveCount(1);
+    await expect(todoPage.todoTitles.first()).toHaveText('残すタスク');
   });
 });
