@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
 
 permissions:
-  contents: write # レポート用およびVRT画像Push用に write
+  contents: write # 💡 レポート用gh-pages更新のために write に変更
   pull-requests: write
 
 jobs:
@@ -14,10 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
-        # 💡 自動コミット後の Push をPRブランチに正確に行うため ref を指定
-        ref: ${{ github.event.pull_request.head.ref }}
-
     - uses: actions/setup-node@v4
       with:
         node-version: lts/*
@@ -26,42 +22,21 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps chromium
 
-    # ------------------------------------------------------------------
-    # 💡 [一時追加] 初回Linux用ベースライン画像の生成＆コミット処理
-    # ------------------------------------------------------------------
-    - name: Generate VRT Baseline Images
-      env:
-        ENV: staging
-      run: npx playwright test tests/saucedemo-visual-regression.spec.ts --update-snapshots
-
-    - name: Commit and Push Updated Snapshots
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git add tests/saucedemo-visual-regression.spec.ts-snapshots/
-        if ! git diff --staged --quiet; then
-          git commit -m "chore(vrt): Linux環境向けベースライン画像の初回自動生成"
-          git push
-        else
-          echo "No snapshot changes to commit."
-        fi
-    # ------------------------------------------------------------------
-
-    # 💡 通常の全テスト判定（画像生成後に実行）
+    # 💡 ENV: staging を追加（PR時は全テストをフル実行）
     - name: Run Playwright tests
       id: run-tests
       env:
         ENV: staging
       run: npx playwright test
 
-    # テスト結果（HTMLレポート）を GitHub Pages (gh-pages ブランチ) へ自動デプロイ
+    # 💡 テスト結果（HTMLレポート）を GitHub Pages (gh-pages ブランチ) へ自動デプロイ
     - name: Deploy Playwright Report to GitHub Pages
       if: always()
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./playwright-report
-        destination_dir: pr-reports/${{ github.event.number }}
+        destination_dir: pr-reports/${{ github.event.number }} # PR番号ごとにディレクトリを分けて保存
 
     # PR画面へのテスト結果自動コメント
     - name: Comment PR with Test Status
@@ -94,7 +69,7 @@ jobs:
             });
           }
 
-    # テスト結果（HTMLレポート）の保存
+    # テスト結果（HTMLレポート）の保存（成功・失敗問わず常に実行）
     - name: Upload Playwright Report Artifact
       if: always()
       uses: actions/upload-artifact@v4
