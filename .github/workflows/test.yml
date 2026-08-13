@@ -46,11 +46,11 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
 
-      # キャッシュがない初回のみ Chromium と WebKit をインストール
-      # ※ mainマージ時は playwright.config.ts で desktop-safari も動くため webkit が必須です
+      # キャッシュがない初回のみ Chromium と WebKit、および必要な OS 依存ライブラリをインストール 
+      # ※ Safari(WebKit) の実行には OS 側のシステムライブラリが必要なため --with-deps が必須です
       - name: Install Playwright Browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium webkit
+        run: npx playwright install --with-deps chromium webkit
 
       # -----------------------------------------------------------------------
       # ステップ2: 本番 URL に対する Playwright E2E テスト実行
