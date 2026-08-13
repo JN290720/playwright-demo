@@ -109,14 +109,13 @@ jobs:
       # -----------------------------------------------------------------------
       # ステップ3-A: 【通常時】Playwright テストの実行
       # -----------------------------------------------------------------------
-      # コメントによるVRT更新コマンド（/update-vrt）ではない、通常のPR更新・Push時のみ実行。
-      # playwright.config.ts に定義された全環境（PC / スマホ / Safari）で自動検証を行います。
+      # 明示的に --reporter=html を指定し、全プロジェクト(PC/スマホ/Safari)を網羅実行します
       - name: Run Playwright tests
         if: "!contains(github.event.comment.body, '/update-vrt')"
         id: run-tests
         env:
           ENV: staging
-        run: npx playwright test
+        run: npx playwright test --reporter=html
 
       # -----------------------------------------------------------------------
       # ステップ3-B: 【コマンド実行時】VRT（視覚テスト）スナップショット画像の自動更新
