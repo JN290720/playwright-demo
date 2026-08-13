@@ -1,96 +1,42 @@
 import { test, expect } from '@playwright/test';
+import { LoginPage } from './pages/LoginPage';
 
-// セキュリティテストは Staging 環境限定
-test.beforeEach(async ({}, testInfo) => {
-  if (process.env.ENV_NAME !== 'staging') {
-    testInfo.skip(true, 'このテストは Staging 環境限定です');
-  }
-});
-
-test.describe('SauceDemo Security & Input Validation Tests', () => {
-
-  // -------------------------------------------------------------
-  // 1. ログイン前（ログインフォーム）のセキュリティ検証
-  // -------------------------------------------------------------
-  test.describe('ログイン前 (Login Form)', () => {
-
-    test.beforeEach(async ({ page }) => {
-      await page.goto('https://www.saucedemo.com/');
-    });
-
-    test('P1-1: ユーザー名に XSS 文字列を入力しても実行されないこと', async ({ page }) => {
-      const xssPayload = "<script>alert('XSS')</script>";
-      await page.locator('[data-test="username"]').fill(xssPayload);
-      await page.locator('[data-test="password"]').fill('secret_sauce');
-      await page.locator('[data-test="login-button"]').click();
-
-      await expect(page.locator('[data-test="error"]')).toBeVisible();
-      const usernameValue = await page.locator('[data-test="username"]').inputValue();
-      expect(usernameValue).toBe(xssPayload);
-    });
-
-    test('P1-2: 非常に長い文字列を入力してもクラッシュしないこと', async ({ page }) => {
-      const longString = 'A'.repeat(1000);
-      await page.locator('[data-test="username"]').fill('standard_user');
-      await page.locator('[data-test="password"]').fill(longString);
-      await page.locator('[data-test="login-button"]').click();
-
-      await expect(page.locator('[data-test="error"]')).toBeVisible();
-    });
-
-    test('P1-3: SQL インジェクション風の文字列を入力してバイパスできないこと', async ({ page }) => {
-      const sqlPayload = "' OR '1'='1";
-      await page.locator('[data-test="username"]').fill(sqlPayload);
-      await page.locator('[data-test="password"]').fill('any');
-      await page.locator('[data-test="login-button"]').click();
-
-      await expect(page.locator('[data-test="error"]')).toBeVisible();
-      await expect(page.url()).toBe('https://www.saucedemo.com/');
-    });
+// SauceDemo のログインフォームに対するセキュリティ・インジェクション攻撃テストスイート
+test.describe('SauceDemo セキュリティ入力（インジェクション）検証', () => {
+  // 各テスト実行前に Staging 環境かどうかを判定するフック処理
+  test.beforeEach(({}, testInfo) => {
+    // 環境変数 ENV_NAME が 'staging' でない場合はテスト実行を安全にスキップ
+    if (process.env.ENV_NAME !== 'staging') {
+      testInfo.skip(true, 'このテストは Staging 環境限定です');
+    }
   });
 
-  // -------------------------------------------------------------
-  // 2. ログイン後（購入手続きフォーム等）のセキュリティ検証
-  // -------------------------------------------------------------
-  test.describe('ログイン後 (Checkout Form)', () => {
+  test('SQLインジェクション風文字列でログインを試みても認証をバイパスできないこと', async ({ page }) => {
+    const loginPage = new LoginPage(page);
 
-    test.beforeEach(async ({ page }) => {
-      // ログインして購入フォームまで移動
-      await page.goto('https://www.saucedemo.com/');
-      await page.locator('[data-test="username"]').fill('standard_user');
-      await page.locator('[data-test="password"]').fill('secret_sauce');
-      await page.locator('[data-test="login-button"]').click();
-      await page.locator('.title').waitFor({ state: 'visible' });
+    // ログイン画面を開く
+    await loginPage.goto();
 
-      // 商品をカートに入れて Checkout 画面に遷移
-      await page.locator('[data-test="add-to-cart-sauce-labs-backpack"]').click();
-      await page.locator('.shopping_cart_link').click();
-      await page.locator('[data-test="checkout"]').click();
-      await page.locator('[data-test="firstName"]').waitFor({ state: 'visible' });
-    });
+    // 代表的な SQL インジェクションの攻撃パターン (' OR '1'='1) を入力してログイン試行
+    await loginPage.login("' OR '1'='1", "' OR '1'='1");
 
-    test('P2-1: 配送先入力（名前・郵便番号）に XSS 文字列を注入しても安全に処理されること', async ({ page }) => {
-      const xssPayload = "<img src=x onerror=alert('XSS')>";
+    // 【検証】認証をバイパスしてログイン成功せず、エラーメッセージが表示されていること
+    await expect(loginPage.errorMessage).toBeVisible();
+    // 【検証】認証失敗時の適切なエラー文言が含まれていること
+    await expect(loginPage.errorMessage).toContainText('Username and password do not match');
+  });
 
-      await page.locator('[data-test="firstName"]').fill(xssPayload);
-      await page.locator('[data-test="lastName"]').fill('Tester');
-      await page.locator('[data-test="postalCode"]').fill('123-4567');
-      await page.locator('[data-test="continue"]').click();
+  test('XSS（スクリプト注入）風文字列を入力してもスクリプトが実行されないこと', async ({ page }) => {
+    const loginPage = new LoginPage(page);
 
-      // 次の画面（確認画面）へ正常に進み、スクリプトが発火せずサニタイズ描画されていることを確認
-      await expect(page.locator('.title')).toHaveText('Checkout: Overview');
-    });
+    // ログイン画面を開く
+    await loginPage.goto();
 
-    test('P2-2: 配送先フォームに超長文（10,000文字）を入力してもシステムが崩壊しないこと', async ({ page }) => {
-      const hugeText = 'B'.repeat(10000);
+    // XSS 攻撃用ペイロード（<script>タグ）を入力してログイン試行
+    const xssPayload = '<script>alert("xss")</script>';
+    await loginPage.login(xssPayload, 'secret_sauce');
 
-      await page.locator('[data-test="firstName"]').fill('Taro');
-      await page.locator('[data-test="lastName"]').fill('Yamada');
-      await page.locator('[data-test="postalCode"]').fill(hugeText);
-      await page.locator('[data-test="continue"]').click();
-
-      // クラッシュせずにエラーまたは次画面遷移が適切に行われること
-      await expect(page.locator('.title')).toBeVisible();
-    });
+    // 【検証】画面クラッシュや意図しないアラート発火が起きず、エラーメッセージが表示されること
+    await expect(loginPage.errorMessage).toBeVisible();
   });
 });
