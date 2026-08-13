@@ -34,7 +34,7 @@ jobs:
       # -----------------------------------------------------------------------
       # /update-vrt コマンドを受け取ったことをユーザーに伝えるため、即座に👀リアクションを追加します。
       - name: Add Eyes Reaction to Command Comment
-        if: "context.eventName == 'issue_comment' && contains(github.event.comment.body, '/update-vrt')"
+        if: "github.event_name == 'issue_comment' && contains(github.event.comment.body, '/update-vrt')"
         uses: actions/github-script@v7
         with:
           script: |
