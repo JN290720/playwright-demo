@@ -53,7 +53,7 @@ npx playwright show-report
 
 | ワークフロー名 | 発火タイミング | 役割 |
 | :--- | :--- | :--- |
-| **PR Test & VRT Update** (`pr-test.yml`) | Pull Request 作成・更新時、または `/update-vrt` コメント投稿時 | 事前検証テスト（PC/スマホ）の実行と PR 画面への結果自動コメント、および VRT 画像の自動更新 |
+| **PR Test & VRT Update** (`pull-request.yml`) | Pull Request 作成・更新時、または `/update-vrt` コメント投稿時 | 事前検証テスト（PC/スマホ）の実行と PR 画面への結果自動コメント、および VRT 画像の自動更新 |
 | **Deploy & Post-Deploy Test** (`deploy-and-test.yml`) | `main` ブランチへの Push / Merge 時 | GitHub Pages へのデプロイと、**公開後の本番 URL に対する自動 E2E テスト実行** |
 
 ---
