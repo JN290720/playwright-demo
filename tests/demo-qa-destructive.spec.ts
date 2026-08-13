@@ -86,18 +86,18 @@ test.describe('7人のQAペルソナによる意地悪な破壊的 E2E テスト
   });
 
   test('P7: 全完了ボタン（Toggle All）適用後に1件解除した際、全完了チェックが自動解除されること', async ({ page }) => {
-    const todoPage = new TodoPage(page);
+      const todoPage = new TodoPage(page);
+      await todoPage.addTodo('タスク1');
+      await todoPage.addTodo('タスク2');
 
-    await todoPage.addTodo('タスク1');
-    await todoPage.addTodo('タスク2');
+      // 1. Toggle All で一旦「全件完了」にする
+      await page.locator('label[for="toggle-all"]').click();
+      await expect(page.locator('#toggle-all')).toBeChecked();
 
-    // トグルオールラベルをクリックして全完了にする
-    await page.getByLabel('Mark all as complete').click();
+      // 2. 画面上のテキストを指定して確実に「タスク1」のみを解除する
+      await page.locator('.todo-list li').filter({ hasText: 'タスク1' }).getByRole('checkbox').uncheck();
 
-    // 1件解除
-    await todoPage.toggleTodo(0);
-
-    // Toggle All チェックボックスがオフ（未選択）に戻っていることを確認
-    await expect(page.getByLabel('Mark all as complete')).not.toBeChecked();
+      // 3. 未完了タスクが存在するため、#toggle-all のチェックが自動的に外れていることを検証
+      await expect(page.locator('#toggle-all')).not.toBeChecked();
   });
 });
