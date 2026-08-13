@@ -11,7 +11,11 @@ dotenv.config({
   override: true,
 });
 
-console.log(`[Playwright Config] 読み込んだ環境: .env.${env} / ENV_NAME=${process.env.ENV_NAME}`)
+console.log(`[Playwright Config] 読み込んだ環境: .env.${env} / ENV_NAME=${process.env.ENV_NAME}`);
+
+// 💡 CI環境かどうか、およびイベント種別（PRかmainマージか）を判定
+const isCI = !!process.env.CI;
+const isPR = process.env.GITHUB_EVENT_NAME === 'pull_request';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -21,13 +25,14 @@ export default defineConfig({
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
-  forbidOnly: !!process.env.CI,
+  forbidOnly: isCI,
   /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  retries: isCI ? 2 : 0,
+  /* 💡 CIでの並列実行ワーカー数：PC＋スマホの並列処理のため 2 ワーカーを指定 */
+  workers: isCI ? 2 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
+  
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* 💡 環境ファイル内の BASE_URL を使用（未設定なら http://localhost:3000 にフォールバック） */
@@ -39,42 +44,33 @@ export default defineConfig({
     video: 'retain-on-failure',   // テスト失敗時のみ動画（MP4）を自動保存
   },
 
-  /* CIの高速化・安定化のため Desktop Chrome (chromium) 1本に集約 */
   projects: [
+    // =========================================================================
+    // 💡 1. PR時 & mainマージ時 の両方で実行するコア環境（PC & スマホ）
+    // PR時でも画面幅に起因するレイアウト崩れや操作不可バグを高速に検知します。
+    // =========================================================================
     {
-      name: 'chromium',
+      name: 'desktop-chrome',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'mobile-chrome',
+      use: { ...devices['Pixel 5'] },
+    },
 
-    // 💡 CI高速化・VRT判定の安定化のためコメントアウト（必要時に解除）
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-    // {
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
-
-    /* Test against mobile viewports. */
-    // {
-    //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 5'] },
-    // },
-    // {
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 12'] },
-    // },
-
-    /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    // },
+    // =========================================================================
+    // 💡 2. mainマージ時（Push時）のみ追加で動かす検証環境（Safari / WebKit）
+    // PR作成・更新時はスキップして開発スピードを優先し、
+    // mainマージ後に WebKit 固有の表示・動作崩れを最終チェックします。
+    // =========================================================================
+    ...(isPR
+      ? [] // PR時はスキップ（上記2プロジェクトのみで高速完走）
+      : [
+          {
+            name: 'desktop-safari',
+            use: { ...devices['Desktop Safari'] },
+          },
+        ]),
   ],
 
   /* Run your local dev server before starting the tests */

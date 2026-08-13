@@ -73,7 +73,7 @@ jobs:
     # テスト結果（HTMLレポート）の保存（成功・失敗問わず常に実行）
     - name: Upload Playwright Report Artifact
       if: always()
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@v4
       with:
         name: pr-playwright-report
         path: playwright-report/

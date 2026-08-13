@@ -1,0 +1,100 @@
+name: PR Comment VRT Update
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  update-vrt:
+    # 💡 PRコメントでかつ "/update-vrt" という文言が含まれている場合のみ実行
+    if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/update-vrt')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      # 1. 該当PRの情報を取得して、そのPRブランチの最新コードを Checkout
+      - name: Get PR branch
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            return pr.data.head.ref;
+          result-encoding: string
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.result }}
+
+      # 2. PR画面に「VRT画像更新中…」のリアクション（👀）を付ける
+      - name: Add reaction
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes'
+            });
+
+      # 3. Node.js & Playwright の準備
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      # 4. スナップショット（VRT画像）の更新実行
+      - name: Update VRT Snapshots
+        env:
+          ENV: staging
+        run: npx playwright test tests/saucedemo-visual-regression.spec.ts --update-snapshots
+
+      # 5. 更新された画像を PR ブランチに Commit & Push
+      - name: Commit & Push updated snapshots
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add tests/saucedemo-visual-regression.spec.ts-snapshots/
+          if ! git diff --staged --quiet; then
+            git commit -m "chore(vrt): コマンド実行によるVRTベースライン画像の自動更新 [skip ci]"
+            git push
+            echo "CHANGED=true" >> $GITHUB_ENV
+          else
+            echo "CHANGED=false" >> $GITHUB_ENV
+          fi
+
+      # 6. 完了したら PR コメントに結果をレスポンス＆完了リアクション（🚀）
+      - name: Reply to PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isSuccess = '${{ job.status }}' === 'success';
+            const body = isSuccess 
+              ? '📸 **VRT Snapshots を更新しました！**\n最新の画像をPRブランチにコミット＆Pushしました。'
+              : '❌ **VRT Snapshots の更新に失敗しました。**\nActions の実行ログを確認してください。';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: isSuccess ? 'rocket' : 'confused'
+            });
