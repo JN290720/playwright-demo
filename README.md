@@ -1,6 +1,6 @@
 # Playwright Demo & E2E Testing Pipeline
 
-このプロジェクトは、Playwright を使用した Web アプリケーションの自動 E2E テスト、および GitHub Actions を活用した CI/CD パイプラインの構築デモ用リポジトリです。
+このプロジェクトは、Playwright を使用した Web アプリケーションの自動 E2E テスト・ビジュアルレグレッションテスト（VRT）、および GitHub Actions を活用した CI/CD パイプラインの構築デモ用リポジトリです。
 
 ---
 
@@ -10,6 +10,7 @@
 - **Runtime:** Node.js (LTS)
 - **CI/CD:** GitHub Actions
 - **Hosting:** GitHub Pages
+- **Testing Scope:** PC (`desktop-chrome`) & スマホ (`mobile-chrome`) 環境のマルチ対応
 
 ---
 
@@ -52,8 +53,32 @@ npx playwright show-report
 
 | ワークフロー名 | 発火タイミング | 役割 |
 | :--- | :--- | :--- |
-| **PR Test** (`pull-request.yml`) | Pull Request 作成・更新時 | 事前検証テストの実行と PR 画面への結果自動コメント |
-| **Deploy & Post-Deploy Test** (`deploy-and-test.yml`) | `main` ブランチへの Push / Merge 時 | GitHub Pages へのデプロイと、**公開後の本番 URL に対する自動 E2E テスト実行** |
+| **PR Test & VRT Update** (`pull-request.yml`) | Pull Request 作成・更新時、または `/update-vrt` コメント投稿時 | 事前検証テスト（PC/スマホ）の実行と PR 画面への結果自動コメント、および VRT 画像の自動更新 |
+| **Post-Deploy Test** (`test.yml`) | `main` ブランチへの Push / Merge 時 | GitHub Pages へのデプロイと、**公開後の本番 URL に対する自動 E2E テスト実行** |
+
+---
+
+## 🎭 VRT (Visual Regression Testing) 運用ガイド
+
+当リポジトリでは、Playwright を用いた画面の見た目崩れ検知（VRT）を導入しており、**PC (`desktop-chrome`)** と **スマホ (`mobile-chrome`)** の双方を検証対象としています。
+
+### 🔄 通常の開発フロー
+1. 機能追加やデザイン変更を行った後、PR（Pull Request）を作成します。
+2. 自動で `PR Test` ワークフローが走り、既存のベースライン画像と現在の画面を比較します。
+3. **テストが成功（✅ PASSED）した場合:** そのままマージ可能です（コメント等の操作は不要です）。
+
+### 📸 VRT画像（ベースライン）を更新したい場合
+ボタンの文言変更やデザイン改修などにより、VRTテストが意図した変更で失敗（❌ FAILED）した場合は、以下の手順で画像を最新の状態にアップデートできます。
+
+1. 該当する **PR のコメント欄** に以下のコマンドを投稿します。
+   ```text
+   /update-vrt
+   ```
+2. GitHub Actions が自動で起動し、Linux環境の PC / スマホ画面の最新スクリーンショットを再撮影して PR ブランチへ自動コミット＆Push します。
+3. 自動でテストが再実行され、グリーン（✅ PASSED）になれば完了です！
+
+> **💡 注意（初回・環境追加時）**
+> 新しいテストや画面を追加した直後の初回PRでは、ベースライン画像が存在しないためテストが落ちます。その際も同様にコメントで `/update-vrt` と投稿して画像を生成させてください。
 
 ---
 
@@ -88,7 +113,7 @@ npx playwright show-report
 | **`refactor`** | リファクタリング（挙動を変えないコード整理） | `refactor: Page Object Pattern を導入してテストコードを再構築` |
 | **`docs`** | ドキュメント（READMEやコメント等）の更新 | `docs: Playwrightのローカル実行手順をREADMEに追加` |
 | **`chore`** | 設定ファイル・ビルド・ライブラリ更新など | `chore: Playwrightを最新バージョンへアップデート` |
-| **`ci`** | CI/CDワークフロー（GitHub Actions等）の修正 | `ci: Playwrightテスト失敗時のみArtifactsを保存するよう変更` |
+| **`ci`** | CI/CDワークフロー（GitHub Actions等）の修正 | `ci: VRTの自動更新コメントトリガーをPRテストに統合` |
 
 ---
 
