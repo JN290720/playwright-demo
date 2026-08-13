@@ -12,6 +12,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const loginPage = new LoginPage(page);
     await loginPage.login('', '');
 
+    // 未入力時のバリデーションエラー表示を確認
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Username is required');
   });
@@ -20,6 +21,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const loginPage = new LoginPage(page);
     await loginPage.login('standard_user', '');
 
+    // パスワード未入力時のバリデーションエラー表示を確認
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Password is required');
   });
@@ -28,6 +30,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const loginPage = new LoginPage(page);
     await loginPage.login('invalid_user', 'wrong_password');
 
+    // 認証失敗時のエラーメッセージを表示を確認
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Username and password do not match');
   });
@@ -36,6 +39,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const loginPage = new LoginPage(page);
     await loginPage.login('locked_out_user', 'secret_sauce');
 
+    // ロックアウトユーザー専用のエラーメッセージを確認
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Sorry, this user has been locked out');
   });
@@ -43,7 +47,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
   test('P5: ユーザー名の前後に余白が含まれている場合、自動トリムされずログインエラーになること', async ({ page }) => {
     const loginPage = new LoginPage(page);
     
-    // SauceDemoは余白トリムを行わないため認証エラーになる仕様を検証
+    // SauceDemoは余白の自動トリムを行わない仕様のため認証失敗となることを検証
     await loginPage.login(' standard_user ', 'secret_sauce');
 
     await expect(loginPage.errorMessage).toBeVisible();
@@ -57,7 +61,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const loginPage = new LoginPage(page);
     await expect(loginPage.errorMessage).toBeVisible();
     
-    // 実際の SauceDemo の未認証直リンク拒否メッセージを検証
+    // 未認証アクセス拒否用のメッセージ文言を検証
     await expect(loginPage.errorMessage).toContainText("You can only access '/inventory.html' when you are logged in");
   });
 
@@ -65,15 +69,19 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const loginPage = new LoginPage(page);
     await loginPage.login('standard_user', 'secret_sauce');
     
+    // サイドバーメニューからログアウトを実行
     await page.click('#react-burger-menu-btn');
     await page.click('#logout_sidebar_link');
 
+    // ブラウザバックしても商品ページに戻れず保護されているか確認
     await page.goBack();
     await expect(loginPage.errorMessage).toBeVisible();
   });
 
   test('P8: パスワード入力欄がマスク処理（type="password"）されていること', async ({ page }) => {
     const loginPage = new LoginPage(page);
+    
+    // パスワード入力フィールドの属性を検証
     await expect(loginPage.passwordInput).toHaveAttribute('type', 'password');
   });
 
@@ -84,6 +92,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const inventoryPage = new InventoryPage(page);
     await inventoryPage.addItemToCart('add-to-cart-sauce-labs-backpack');
 
+    // カートバッジの件数が 1 であることを確認
     await expect(inventoryPage.cartBadge).toHaveText('1');
   });
 
@@ -94,6 +103,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const inventoryPage = new InventoryPage(page);
     await inventoryPage.selectSortOption('lohi');
 
+    // 表示価格を取得して昇順にソートされていることを検証
     const prices = await page.locator('.inventory_item_price').allTextContents();
     const numericPrices = prices.map(p => parseFloat(p.replace('$', '')));
     const sortedPrices = [...numericPrices].sort((a, b) => a - b);
@@ -107,11 +117,13 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     await page.goto('https://www.saucedemo.com/checkout-step-one.html');
     await page.click('[data-test="continue"]');
 
+    // チェックアウトフォームのバリデーションエラーを確認
     await expect(page.locator('[data-test="error"]')).toBeVisible();
     await expect(page.locator('[data-test="error"]')).toContainText('First Name is required');
   });
 
   test('P12: セッション切れや無効なパラメータでの注文完了画面直リンクを防止できること', async ({ page }) => {
+    // 完了画面への不正直リンクアクセス時の拒否状態を確認
     await page.goto('https://www.saucedemo.com/checkout-complete.html');
     const loginPage = new LoginPage(page);
     await expect(loginPage.errorMessage).toBeVisible();
