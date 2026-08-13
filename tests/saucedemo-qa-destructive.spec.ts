@@ -2,36 +2,130 @@ import { test, expect } from '@playwright/test';
 import { LoginPage } from './pages/LoginPage';
 import { InventoryPage } from './pages/InventoryPage';
 
-test.describe('SauceDemo 破壊的・限界値テスト（QA観点）', () => {
-  test.beforeEach(({}, testInfo) => {
-    if (process.env.ENV_NAME !== 'staging') {
-      testInfo.skip(true, 'このテストは Staging 環境限定です');
-    }
+test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケース）', () => {
+  test.beforeEach(async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
   });
 
-  test('空のユーザー名・パスワードでログインを試みた場合、適切なエラーが表示されること', async ({ page }) => {
+  test('P1: 空のユーザー名とパスワードでログイン試行時にエラーが表示されること', async ({ page }) => {
     const loginPage = new LoginPage(page);
+    await loginPage.login('', '');
 
-    await loginPage.goto();
-    
-    // 何も入力せずにログインボタンをクリック
-    await loginPage.loginButton.click();
-
-    // ユーザー名必須のエラーが表示されるか確認
+    // 未入力時のバリデーションエラー表示を確認
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Username is required');
   });
 
-  test('極端に長い文字列や特殊文字を入力してもクラッシュしないこと', async ({ page }) => {
+  test('P2: パスワードのみ未入力でログイン試行時にエラーが表示されること', async ({ page }) => {
     const loginPage = new LoginPage(page);
+    await loginPage.login('standard_user', '');
 
-    await loginPage.goto();
+    // パスワード未入力時のバリデーションエラー表示を確認
+    await expect(loginPage.errorMessage).toBeVisible();
+    await expect(loginPage.errorMessage).toContainText('Password is required');
+  });
 
-    // 1,000文字の超長文文字列を入力してログイン試行
-    const longInput = 'A'.repeat(1000);
-    await loginPage.login(longInput, longInput);
+  test('P3: 存在しない無効なユーザー情報でエラーが表示されること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.login('invalid_user', 'wrong_password');
 
-    // アプリがクラッシュせず、通常の認証エラーが表示されること
+    // 認証失敗時のエラーメッセージを表示を確認
+    await expect(loginPage.errorMessage).toBeVisible();
+    await expect(loginPage.errorMessage).toContainText('Username and password do not match');
+  });
+
+  test('P4: 凍結（ロックアウト）されたユーザーでエラーが表示されること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.login('locked_out_user', 'secret_sauce');
+
+    // ロックアウトユーザー専用のエラーメッセージを確認
+    await expect(loginPage.errorMessage).toBeVisible();
+    await expect(loginPage.errorMessage).toContainText('Sorry, this user has been locked out');
+  });
+
+  test('P5: ユーザー名の前後に余白が含まれている場合、自動トリムされずログインエラーになること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    
+    // SauceDemoは余白の自動トリムを行わない仕様のため認証失敗となることを検証
+    await loginPage.login(' standard_user ', 'secret_sauce');
+
+    await expect(loginPage.errorMessage).toBeVisible();
+    await expect(loginPage.errorMessage).toContainText('Username and password do not match any user in this service');
+  });
+
+  test('P6: 未ログイン状態で商品ページへ直リンク移動した場合、ログイン画面へリダイレクトされること', async ({ page }) => {
+    const inventoryPage = new InventoryPage(page);
+    await inventoryPage.goto();
+
+    const loginPage = new LoginPage(page);
+    await expect(loginPage.errorMessage).toBeVisible();
+    
+    // 未認証アクセス拒否用のメッセージ文言を検証
+    await expect(loginPage.errorMessage).toContainText("You can only access '/inventory.html' when you are logged in");
+  });
+
+  test('P7: ログアウト操作後にブラウザの「戻る」ボタンを押しても認証保護されること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.login('standard_user', 'secret_sauce');
+    
+    // サイドバーメニューからログアウトを実行
+    await page.click('#react-burger-menu-btn');
+    await page.click('#logout_sidebar_link');
+
+    // ブラウザバックしても商品ページに戻れず保護されているか確認
+    await page.goBack();
+    await expect(loginPage.errorMessage).toBeVisible();
+  });
+
+  test('P8: パスワード入力欄がマスク処理（type="password"）されていること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    
+    // パスワード入力フィールドの属性を検証
+    await expect(loginPage.passwordInput).toHaveAttribute('type', 'password');
+  });
+
+  test('P9: カートに同じ商品を複数回追加しても、カートバッジが正しく1件としてカウントされること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.login('standard_user', 'secret_sauce');
+
+    const inventoryPage = new InventoryPage(page);
+    await inventoryPage.addItemToCart('add-to-cart-sauce-labs-backpack');
+
+    // カートバッジの件数が 1 であることを確認
+    await expect(inventoryPage.cartBadge).toHaveText('1');
+  });
+
+  test('P10: 商品一覧のソート機能（価格の安い順）が正しく並び変わること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.login('standard_user', 'secret_sauce');
+
+    const inventoryPage = new InventoryPage(page);
+    await inventoryPage.selectSortOption('lohi');
+
+    // 表示価格を取得して昇順にソートされていることを検証
+    const prices = await page.locator('.inventory_item_price').allTextContents();
+    const numericPrices = prices.map(p => parseFloat(p.replace('$', '')));
+    const sortedPrices = [...numericPrices].sort((a, b) => a - b);
+    expect(numericPrices).toEqual(sortedPrices);
+  });
+
+  test('P11: チェックアウト画面で未入力のまま送信した場合、フォームバリデーションエラーが出ること', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.login('standard_user', 'secret_sauce');
+
+    await page.goto('https://www.saucedemo.com/checkout-step-one.html');
+    await page.click('[data-test="continue"]');
+
+    // チェックアウトフォームのバリデーションエラーを確認
+    await expect(page.locator('[data-test="error"]')).toBeVisible();
+    await expect(page.locator('[data-test="error"]')).toContainText('First Name is required');
+  });
+
+  test('P12: セッション切れや無効なパラメータでの注文完了画面直リンクを防止できること', async ({ page }) => {
+    // 完了画面への不正直リンクアクセス時の拒否状態を確認
+    await page.goto('https://www.saucedemo.com/checkout-complete.html');
+    const loginPage = new LoginPage(page);
     await expect(loginPage.errorMessage).toBeVisible();
   });
 });

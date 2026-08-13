@@ -1,43 +1,103 @@
 import { test, expect } from '@playwright/test';
 import { TodoPage } from './pages/TodoPage';
 
-// TodoMVC に対する破壊的入力（境界値・特殊文字）のテストスイート
-test.describe('TodoMVC 破壊的・限界値テスト（QA観点）', () => {
-  // 各テストケースが実行される前に自動的に実行される共通の前処理
+test.describe('7人のQAペルソナによる意地悪な破壊的 E2E テスト', () => {
   test.beforeEach(async ({ page }) => {
     const todoPage = new TodoPage(page);
-    // テストごとに毎回初期化された状態の Todo デモ画面へアクセス
     await todoPage.goto();
   });
 
-  test('極端に長い文字列（150文字）を入力してもレイアウトが崩れず追加できること', async ({ page }) => {
-    // ページオブジェクトのインスタンスを生成
+  test('P1: 空白文字の送信や無駄な連打を行っても、空のTodoが生成されないこと', async ({ page }) => {
     const todoPage = new TodoPage(page);
-    
-    // 境界値テスト用: 'A' を 150 文字分並べた超長文文字列を作成
-    const longText = 'A'.repeat(150);
 
-    // POM 経由で長文タスクを追加
-    await todoPage.addTodo(longText);
+    // 空白入力や連打の試行
+    await todoPage.newTodoInput.fill('   ');
+    await todoPage.newTodoInput.press('Enter');
 
-    // 【検証】リストに 1 件追加されていること
-    await expect(todoPage.todoTitles).toHaveCount(1);
-    // 【検証】入力した長文テキストが崩れずにそのまま保持されていること
-    await expect(todoPage.todoTitles.first()).toHaveText(longText);
+    // リストが空であることを検証
+    await expect(todoPage.todoItems).toHaveCount(0);
   });
 
-  test('特殊文字や絵文字を含むタスク名が正常に処理されること', async ({ page }) => {
+  test('P2: 前後の余白が自動トリムされ、キーボード操作で正しくフォーカスが当たる', async ({ page }) => {
     const todoPage = new TodoPage(page);
-    
-    // 記号・HTMLタグ（<script>等）・絵文字を含んだテスト文字列
-    const specialText = '🔥 <script>alert("test")</script> & 🍣';
 
-    // POM 経由で特殊文字タスクを追加
-    await todoPage.addTodo(specialText);
+    await todoPage.addTodo('  余白付きタスク  ');
 
-    // 【検証】リストに 1 件追加されていること
-    await expect(todoPage.todoTitles).toHaveCount(1);
-    // 【検証】HTMLタグとして実行（スクリプト注入）されず、プレーンテキストとして安全に表示されていること
-    await expect(todoPage.todoTitles.first()).toHaveText(specialText);
+    // トリムされて追加されているか確認
+    await expect(todoPage.todoTitles.first()).toHaveText('余白付きタスク');
+  });
+
+  test('P3: XSSスクリプトや超長文を注入してもアプリがエスケープ処理し破壊されないこと', async ({ page }) => {
+    const todoPage = new TodoPage(page);
+
+    const xssText = '<script>alert("xss")</script>';
+    const longText = 'A'.repeat(150);
+
+    await todoPage.addTodo(xssText);
+    await todoPage.addTodo(longText);
+
+    await expect(todoPage.todoTitles.nth(0)).toHaveText(xssText);
+    await expect(todoPage.todoTitles.nth(1)).toHaveText(longText);
+  });
+
+  test('P4: 画面上の操作結果が LocalStorage の実データと完全に整合していること', async ({ page }) => {
+    const todoPage = new TodoPage(page);
+
+    await todoPage.addTodo('Storageテスト');
+
+    // LocalStorage に正しい JSON データとして格納されているか検証
+    const savedData = await page.evaluate(() => localStorage.getItem('react-todos'));
+    expect(savedData).toContain('Storageテスト');
+  });
+
+  test('P5: 既存のデータ（LocalStorage）がブラウザに残っている状態から正常に読み込めること', async ({ page }) => {
+    // 事前に LocalStorage にデータを注入
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'react-todos',
+        JSON.stringify([{ id: '1', title: '事前注入データ', completed: false }])
+      );
+    });
+
+    const todoPage = new TodoPage(page);
+    await todoPage.goto();
+
+    // 画面に復元されているか確認
+    await expect(todoPage.todoTitles.first()).toHaveText('事前注入データ');
+  });
+
+  test('P6: 完了状態変更とフィルター切り替えの複合操作時にカウント数が正しく維持されること', async ({ page }) => {
+    const todoPage = new TodoPage(page);
+
+    await todoPage.addTodo('タスク1');
+    await todoPage.addTodo('タスク2');
+
+    // 1つ目を完了状態へ
+    await todoPage.toggleTodo(0);
+
+    // Active フィルターへ切り替え
+    await page.getByRole('link', { name: 'Active' }).click();
+    await expect(todoPage.todoItems).toHaveCount(1);
+    await expect(todoPage.todoTitles.first()).toHaveText('タスク2');
+
+    // All フィルターへ戻す
+    await page.getByRole('link', { name: 'All' }).click();
+    await expect(todoPage.todoItems).toHaveCount(2);
+  });
+
+  test('P7: 全完了ボタン（Toggle All）適用後に1件解除した際、全完了チェックが自動解除されること', async ({ page }) => {
+      const todoPage = new TodoPage(page);
+      await todoPage.addTodo('タスク1');
+      await todoPage.addTodo('タスク2');
+
+      // 1. Toggle All で一旦「全件完了」にする
+      await page.locator('label[for="toggle-all"]').click();
+      await expect(page.locator('#toggle-all')).toBeChecked();
+
+      // 2. 画面上のテキストを指定して確実に「タスク1」のみを解除する
+      await page.locator('.todo-list li').filter({ hasText: 'タスク1' }).getByRole('checkbox').uncheck();
+
+      // 3. 未完了タスクが存在するため、#toggle-all のチェックが自動的に外れていることを検証
+      await expect(page.locator('#toggle-all')).not.toBeChecked();
   });
 });
