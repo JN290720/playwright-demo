@@ -1,156 +1,93 @@
-name: PR Test & VRT Update
+name: PR Test
 
 on:
   pull_request:
     branches: [ main, master ]
-  # 💡 PRコメントで /update-vrt が投稿された場合もトリガー
-  issue_comment:
-    types: [created]
 
 permissions:
-  contents: write      # レポート用gh-pages更新 ＆ VRT画像Commit用
-  pull-requests: write # PRコメント追加・更新用
-  issues: write        # issue_commentイベントでのコメント制御用
+  contents: write # 💡 VRT画像のコミット ＆ レポート用gh-pages更新のため
+  pull-requests: write
 
 jobs:
   test:
-    # 💡 PR作成・更新時、または PRに対する "/update-vrt" コメント投稿時に実行
-    if: |
-      github.event_name == 'pull_request' || 
-      (github.event.issue.pull_request && contains(github.event.comment.body, '/update-vrt'))
-
     timeout-minutes: 60
     runs-on: ubuntu-latest
-    
     steps:
-      # 💡 1. イベント種別（PR更新かコメントか）に応じて正しいPRブランチ名を動的に取得
-      - name: Get PR Branch Name
-        id: pr-branch
-        uses: actions/github-script@v7
-        with:
-          script: |
-            if (context.eventName === 'issue_comment') {
-              const pr = await github.rest.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.issue.number
-              });
-              return pr.data.head.ref;
-            }
-            return context.payload.pull_request.head.ref;
-          result-encoding: string
-
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.pr-branch.outputs.result }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
-
       - name: Install dependencies
         run: npm ci
-
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
 
-      # -----------------------------------------------------------------------
-      # 💡 2-A. 通常のPRテスト実行（/update-vrt コマンドでない場合）
-      # -----------------------------------------------------------------------
+      # =======================================================================
+      # 💡 【初回限定】テスト実行前に正解画像（PC/スマホ）を自動生成してPush
+      # =======================================================================
+      - name: Generate VRT Snapshots (Initial Run)
+        env:
+          ENV: staging
+        run: npx playwright test --grep "visual-regression" --update-snapshots
+
+      - name: Commit & Push initial snapshots
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add "tests/**/*-snapshots/*"
+          
+          if ! git diff --staged --quiet; then
+            git commit -m "chore(vrt): 初回実行によるPC/スマホのVRT正解画像自動追加 [skip ci]"
+            git push
+          fi
+      # =======================================================================
+
+      # 💡 画像が揃った状態で全テストを実行（ここでPASSEDになります）
       - name: Run Playwright tests
-        if: "!contains(github.event.comment.body, '/update-vrt')"
         id: run-tests
         env:
           ENV: staging
         run: npx playwright test
 
-      # -----------------------------------------------------------------------
-      # 💡 2-B. VRT画像自動更新実行（/update-vrt コマンドの場合）
-      # desktop-chrome, mobile-chrome 両環境のVRT画像を一括更新
-      # -----------------------------------------------------------------------
-      - name: Update VRT Snapshots
-        if: "contains(github.event.comment.body, '/update-vrt')"
-        env:
-          ENV: staging
-        run: npx playwright test --grep "visual-regression" --update-snapshots
-
-      # 💡 3. 更新された全環境のVRT画像（PC/スマホ）をコミット＆Push
-      - name: Commit & Push updated snapshots
-        if: "contains(github.event.comment.body, '/update-vrt')"
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # フォルダ構造を問わず全てのスナップショットディレクトリ配下をステージング
-          git add "tests/**/*-snapshots/*"
-          
-          if ! git diff --staged --quiet; then
-            git commit -m "chore(vrt): PC/スマホ全環境のVRTベースライン画像を自動更新 [skip ci]"
-            git push
-          fi
-
-      # -----------------------------------------------------------------------
-      # 4. レポート生成・コメントレスポンス関連
-      # -----------------------------------------------------------------------
-      
-      # HTMLレポートを gh-pages へデプロイ（通常テスト時のみ）
+      # 💡 テスト結果（HTMLレポート）を GitHub Pages へデプロイ
       - name: Deploy Playwright Report to GitHub Pages
-        if: "always() && !contains(github.event.comment.body, '/update-vrt')"
+        if: always()
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./playwright-report
-          destination_dir: pr-reports/${{ steps.pr-branch.outputs.result }}
+          destination_dir: pr-reports/${{ github.event.number }}
 
-      # PR画面へのテスト結果/VRT更新結果の自動コメント
-      - name: Comment PR Status or VRT Reply
+      # PR画面へのテスト結果自動コメント
+      - name: Comment PR with Test Status
         if: always()
         uses: actions/github-script@v7
         with:
           script: |
-            const isVrtCommand = context.eventName === 'issue_comment' && context.payload.comment.body.includes('/update-vrt');
-            const issueNumber = context.issue.number;
-            
-            if (isVrtCommand) {
-              // 💡 /update-vrt 実行時のレスポンスコメント
-              const isSuccess = '${{ job.status }}' === 'success';
-              const replyBody = isSuccess
-                ? '📸 **PCおよびスマホ環境の VRT Snapshots を自動更新しました！**\n最新の画像をブランチにコミット＆Pushしました。再テストの完了をお待ちください。'
-                : '❌ **VRT Snapshots の自動更新に失敗しました。**\nActions ログをご確認ください。';
+            const status = '${{ steps.run-tests.outcome }}' === 'success' ? '✅ PASSED' : '❌ FAILED'; 
+            const reportUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/pr-reports/${context.issue.number}/`; 
 
-              await github.rest.issues.createComment({
-                owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber, body: replyBody
+            const body = `### 🎭 Playwright Test Results (PR Check)\n` +
+                         `**Status:** ${status}\n` +
+                         `**PR Branch:** \`${context.payload.pull_request.head.ref}\` \n` +
+                         `**📊 HTML Report:** [View Test Report](${reportUrl})`;
+            
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number
+            });
+            const botComment = comments.find(c => c.body.includes('Playwright Test Results'));
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo, comment_id: botComment.id, body: body
               });
             } else {
-              // 💡 通常テスト時の結果コメント（既存ロジック）
-              const status = '${{ steps.run-tests.outcome }}' === 'success' ? '✅ PASSED' : '❌ FAILED'; 
-              const reportUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/pr-reports/${encodeURIComponent('${{ steps.pr-branch.outputs.result }}')}/`; 
-
-              const body = `### 🎭 Playwright Test Results (PR Check)\n` +
-                           `**Status:** ${status}\n` +
-                           `**PR Branch:** \`${'${{ steps.pr-branch.outputs.result }}'}\` \n` +
-                           `**📊 HTML Report:** [View Test Report](${reportUrl})\n\n` +
-                           `---\n` +
-                           `📸 **VRT画像を更新したい場合:**\n` +
-                           `コメント欄に \`/update-vrt\` と投稿すると、Linux環境のPC/スマホ最新画像を自動更新してPushします。`;
-              
-              const { data: comments } = await github.rest.issues.listComments({
-                owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body: body
               });
-              const botComment = comments.find(c => c.body.includes('Playwright Test Results'));
-              
-              if (botComment) {
-                await github.rest.issues.updateComment({
-                  owner: context.repo.owner, repo: context.repo.repo, comment_id: botComment.id, body: body
-                });
-              } else {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber, body: body
-                });
-              }
             }
 
-      # アーティファクトの保存（成功・失敗問わず常に実行）
       - name: Upload Playwright Report Artifact
         if: always()
         uses: actions/upload-artifact@v4
