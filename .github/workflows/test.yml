@@ -1,8 +1,9 @@
 name: Post-Deploy Test
 
 on:
+  # デプロイ用ワークフロー（Deploy App）の実行完了をトリガーとして自動起動
   workflow_run:
-    workflows: ["Deploy App"] # 💡 deploy.yml の name フィールドと完全一致させてください
+    workflows: ["Deploy App"]
     types:
       - completed
 
@@ -13,65 +14,105 @@ permissions:
 
 jobs:
   post-deploy-test:
-    # 💡 アプリのデプロイが成功した場合のみ実行
+    # -------------------------------------------------------------------------
+    # 【実行条件】「Deploy App」ワークフローが「成功（success）」した場合のみテストを実行
+    # デプロイがコケている場合は無駄なテスト実行を回避します
+    # -------------------------------------------------------------------------
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    
     steps:
-    - uses: actions/checkout@v7
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-      
-    # 💡 ENV: prod を明示指定（本番環境なので Staging 限定テストはスキップされる）
-    - name: Run Playwright tests
-      env:
-        ENV: prod
-        BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-      run: npx playwright test
+      # -----------------------------------------------------------------------
+      # ステップ1: コードのチェックアウトと環境セットアップ（🚀 高速化対応）
+      # -----------------------------------------------------------------------
+      - uses: actions/checkout@v4
 
-    # 💡 1回のデプロイで済むよう、出力用フォルダに両方の階層構造を準備
-    - name: Prepare Report Directories
-      if: always()
-      run: |
-        mkdir -p ./deploy-artifacts/main-test-${{ github.run_id }}
-        mkdir -p ./deploy-artifacts/main-deploy-report
-        
-        # 生成されたレポートを両方のディレクトリへコピー
-        cp -R ./playwright-report/* ./deploy-artifacts/main-test-${{ github.run_id }}/
-        cp -R ./playwright-report/* ./deploy-artifacts/main-deploy-report/
+      # Node.js のセットアップ（`cache: 'npm'` により依存パッケージを自動キャッシュ）
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'npm'
 
-    # 💡 1回のデプロイアクションで両方のレポートを一括 push（Push競合を回避）
-    - name: Deploy All Reports to GitHub Pages
-      if: always()
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./deploy-artifacts
-        keep_files: true
+      # package.json の依存パッケージをインストール
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Output Report URL to Summary & Log
-      if: always()
-      run: |
-        echo "======================================================="
-        echo "🎭 Latest Test Report URL:"
-        echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-deploy-report/"
-        echo "🎭 Run #${{ github.run_id }} Test Report URL:"
-        echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-test-${{ github.run_id }}/"
-        echo "======================================================="
+      # 💡 Playwright のブラウザバイナリをキャッシュ
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
 
-        echo "## 🎭 Playwright Test Reports" >> $GITHUB_STEP_SUMMARY
-        echo "🌟 **[最新のテストレポートを見る](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-deploy-report/)**" >> $GITHUB_STEP_SUMMARY
-        echo "📜 **[今回の実行結果のみ見る (#${{ github.run_id }})](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-test-${{ github.run_id }}/)**" >> $GITHUB_STEP_SUMMARY
+      # 💡 キャッシュがない初回のみ Chromium ブラウザを速やかにインストール
+      - name: Install Playwright Browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
 
-    - name: Upload Test Report Artifact
-      if: always()
-      uses: actions/upload-artifact@v5
-      with:
-        name: post-deploy-playwright-report
-        path: playwright-report/
-        retention-days: 7
+      # -----------------------------------------------------------------------
+      # ステップ2: 本番 URL に対する Playwright E2E テスト実行
+      # -----------------------------------------------------------------------
+      # 本番環境（ENV: prod）と本番ページ URL を環境変数で渡して全テストを検証します
+      - name: Run Playwright tests
+        env:
+          ENV: prod
+          BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: npx playwright test
+
+      # -----------------------------------------------------------------------
+      # ステップ3: GitHub Pages デプロイ用のフォルダ構造準備
+      # -----------------------------------------------------------------------
+      # 「最新レポート（main-deploy-report）」と「今回実行分（main-test-<run_id>）」の
+      # 2系統のディレクトリを作成し、レポートファイルをそれぞれ配置します。
+      - name: Prepare Report Directories
+        if: always()
+        run: |
+          mkdir -p ./deploy-artifacts/main-test-${{ github.run_id }}
+          mkdir -p ./deploy-artifacts/main-deploy-report
+          
+          # 生成された HTML レポートを両方のディレクトリへ複製コピー
+          cp -R ./playwright-report/* ./deploy-artifacts/main-test-${{ github.run_id }}/
+          cp -R ./playwright-report/* ./deploy-artifacts/main-deploy-report/
+
+      # -----------------------------------------------------------------------
+      # ステップ4: GitHub Pages へ全レポートを一括アップロード
+      # -----------------------------------------------------------------------
+      # 1回のデプロイアクションで2つのレポートを同時公開（Git Push のバッティング競合を回避）
+      - name: Deploy All Reports to GitHub Pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./deploy-artifacts
+          keep_files: true
+
+      # -----------------------------------------------------------------------
+      # ステップ5: 実行ログおよび Job Summary へのリンク出力
+      # -----------------------------------------------------------------------
+      # Actions 実行結果画面（Summary）やコンソールログにレポート表示用 URL を出力します
+      - name: Output Report URL to Summary & Log
+        if: always()
+        run: |
+          echo "======================================================="
+          echo "🎭 Latest Test Report URL:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-deploy-report/"
+          echo "🎭 Run #${{ github.run_id }} Test Report URL:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-test-${{ github.run_id }}/"
+          echo "======================================================="
+
+          echo "## 🎭 Playwright Test Reports" >> $GITHUB_STEP_SUMMARY
+          echo "🌟 **[最新のテストレポートを見る](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-deploy-report/)**" >> $GITHUB_STEP_SUMMARY
+          echo "📜 **[今回の実行結果のみ見る (#${{ github.run_id }})](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-test-${{ github.run_id }}/)**" >> $GITHUB_STEP_SUMMARY
+
+      # -----------------------------------------------------------------------
+      # ステップ6: テスト結果（HTMLレポート）のアーティファクト保存
+      # -----------------------------------------------------------------------
+      - name: Upload Test Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-playwright-report
+          path: playwright-report/
+          retention-days: 7
