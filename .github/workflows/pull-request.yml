@@ -162,15 +162,25 @@ jobs:
       # -----------------------------------------------------------------------
       # ステップ5: HTMLテストレポートの GitHub Pages デプロイ
       # -----------------------------------------------------------------------
-      # 通常テスト時のみ実行（テストの成否に関わらず always() 実行）。
-      # 生成された HTML レポートを gh-pages ブランチの PR専用ディレクトリへアップロードします。
+      # レポートディレクトリが存在するか事前にチェック
+      - name: Check Playwright Report Directory
+        id: check-report
+        run: |
+          if [ -d "./playwright-report" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # レポートが存在する場合のみデプロイを実行（gh-pages ブランチの既存差分を維持）
       - name: Deploy Playwright Report to GitHub Pages
-        if: "always() && !contains(github.event.comment.body, '/update-vrt')"
+        if: "always() && steps.check-report.outputs.exists == 'true' && !contains(github.event.comment.body, '/update-vrt')"
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./playwright-report
           destination_dir: pr-reports/${{ steps.pr-branch.outputs.result }}
+          keep_files: true
 
       # -----------------------------------------------------------------------
       # ステップ6: PR画面への結果フィードバックコメント投稿
