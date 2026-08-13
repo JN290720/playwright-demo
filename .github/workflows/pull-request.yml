@@ -128,6 +128,19 @@ jobs:
         env:
           ENV: staging
         run: npx playwright test tests/saucedemo-visual-regression.spec.ts --update-snapshots --project=desktop-chrome --project=mobile-chrome --project=desktop-safari
+      
+        # -----------------------------------------------------------------------
+      # ステップ3-C: レポートディレクトリの作成・準備（空回避）
+      # -----------------------------------------------------------------------
+      # playwright-report が生成されていない場合でもエラーで落ちないよう、
+      # 空のフォルダーとフォールバック用 index.html を確実に準備します。
+      - name: Prepare Report Directory
+        if: always()
+        run: |
+          mkdir -p ./playwright-report
+          if [ ! -f "./playwright-report/index.html" ]; then
+            echo "<html><body><h1>Playwright Report</h1><p>No report generated or tests passed without html reporter output.</p></body></html>" > ./playwright-report/index.html
+          fi
 
       # -----------------------------------------------------------------------
       # ステップ4: 【コマンド実行時】更新されたスナップショット画像の Git Commit & Push
@@ -162,19 +175,8 @@ jobs:
       # -----------------------------------------------------------------------
       # ステップ5: HTMLテストレポートの GitHub Pages デプロイ
       # -----------------------------------------------------------------------
-      # レポートディレクトリが存在するか事前にチェック
-      - name: Check Playwright Report Directory
-        id: check-report
-        run: |
-          if [ -d "./playwright-report" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      # レポートが存在する場合のみデプロイを実行（gh-pages ブランチの既存差分を維持）
       - name: Deploy Playwright Report to GitHub Pages
-        if: "always() && steps.check-report.outputs.exists == 'true' && !contains(github.event.comment.body, '/update-vrt')"
+        if: "always() && !contains(github.event.comment.body, '/update-vrt')"
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
