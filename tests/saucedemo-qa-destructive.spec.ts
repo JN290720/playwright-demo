@@ -11,6 +11,8 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
   test('P1: 空のユーザー名とパスワードでログイン試行時にエラーが表示されること', async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.login('', '');
+
+    // バリデーションエラーメッセージの検証
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Username is required');
   });
@@ -18,6 +20,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
   test('P2: パスワードのみ未入力でログイン試行時にエラーが表示されること', async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.login('standard_user', '');
+
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Password is required');
   });
@@ -25,6 +28,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
   test('P3: 存在しない無効なユーザー情報でエラーが表示されること', async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.login('invalid_user', 'wrong_password');
+
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Username and password do not match');
   });
@@ -32,14 +36,17 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
   test('P4: 凍結（ロックアウト）されたユーザーでエラーが表示されること', async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.login('locked_out_user', 'secret_sauce');
+
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Sorry, this user has been locked out');
   });
 
   test('P5: ユーザー名の前後に余白が含まれている場合、ログインに失敗すること', async ({ page }) => {
     const loginPage = new LoginPage(page);
+    
     // SauceDemoは余白トリムを自動で行わないため認証エラーになる仕様を検証
     await loginPage.login(' standard_user ', 'secret_sauce');
+
     await expect(loginPage.errorMessage).toBeVisible();
     await expect(loginPage.errorMessage).toContainText('Username and password do not match');
   });
@@ -47,9 +54,11 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
   test('P6: 未ログイン状態で商品ページへ直リンク移動した場合、ログイン画面へリダイレクトされること', async ({ page }) => {
     const inventoryPage = new InventoryPage(page);
     await inventoryPage.goto();
+
     const loginPage = new LoginPage(page);
     await expect(loginPage.errorMessage).toBeVisible();
-    // 実際の SauceDemo のエラーメッセージ文言に修正
+    
+    // 未認証アクセス拒否メッセージの確認
     await expect(loginPage.errorMessage).toContainText("You can only access '/inventory.html' when you are logged in");
   });
 
@@ -57,9 +66,11 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const loginPage = new LoginPage(page);
     await loginPage.login('standard_user', 'secret_sauce');
     
+    // ハンバーガーメニューからログアウトを実行
     await page.click('#react-burger-menu-btn');
     await page.click('#logout_sidebar_link');
 
+    // ブラウザバックの試行
     await page.goBack();
     await expect(loginPage.errorMessage).toBeVisible();
   });
@@ -76,6 +87,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const inventoryPage = new InventoryPage(page);
     await inventoryPage.addItemToCart('add-to-cart-sauce-labs-backpack');
 
+    // バッジ数が 1 であることを検証
     await expect(inventoryPage.cartBadge).toHaveText('1');
   });
 
@@ -86,6 +98,7 @@ test.describe('SauceDemo 破壊的・異常系テストスイート（全12ケ�
     const inventoryPage = new InventoryPage(page);
     await inventoryPage.selectSortOption('lohi');
 
+    // 画面上の価格リストを取得して昇順ソートの整合性を確認
     const prices = await page.locator('.inventory_item_price').allTextContents();
     const numericPrices = prices.map(p => parseFloat(p.replace('$', '')));
     const sortedPrices = [...numericPrices].sort((a, b) => a - b);
