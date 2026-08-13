@@ -94,7 +94,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          # 🔑 修正前: key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-playwright-pr-${{ hashFiles('**/package-lock.json') }}
 
       # 💡 キャッシュがヒットしなかった初回のみ Chromium ブラウザをインストール
       # `--with-deps` を削除し、必要最小限の Chromium のみ指定することでセットアップ時間を爆速化
