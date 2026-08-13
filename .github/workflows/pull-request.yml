@@ -94,7 +94,7 @@ jobs:
         if: "contains(github.event.comment.body, '/update-vrt')"
         env:
           ENV: staging
-        run: npx playwright test --update-snapshots
+        run: npx playwright test tests/saucedemo-visual-regression.spec.ts --update-snapshots --project=desktop-chrome --project=mobile-chrome
 
       # -----------------------------------------------------------------------
       # ステップ4: 【コマンド実行時】更新されたスナップショット画像の Git Commit & Push
