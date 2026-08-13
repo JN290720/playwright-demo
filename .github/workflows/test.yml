@@ -65,7 +65,7 @@ jobs:
         echo "======================================================="
 
         echo "## 🎭 Playwright Test Reports" >> $GITHUB_STEP_SUMMARY
-        echo "🌟 **[最新のテストレポートを見る（ブックマーク用）](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-deploy-report/)**" >> $GITHUB_STEP_SUMMARY
+        echo "🌟 **[最新のテストレポートを見る](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-deploy-report/)**" >> $GITHUB_STEP_SUMMARY
         echo "📜 **[今回の実行結果のみ見る (#${{ github.run_id }})](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main-test-${{ github.run_id }}/)**" >> $GITHUB_STEP_SUMMARY
 
     - name: Upload Test Report Artifact
