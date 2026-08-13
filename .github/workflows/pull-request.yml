@@ -19,6 +19,7 @@ jobs:
     # 【実行条件の制御】
     # 1. 通常のPRイベント（作成・Push）時
     # 2. または、PRに対するコメント投稿であり、かつ本文に "/update-vrt" が含まれる時
+    # ※無関係なIssueコメントや通常のPRコメントでの無駄なActions起動を防ぎます
     # -------------------------------------------------------------------------
     if: |
       github.event_name == 'pull_request' || 
@@ -29,7 +30,7 @@ jobs:
     
     steps:
       # -----------------------------------------------------------------------
-      # 💡 追加機能1: コメントへの受付スタンプ（👀 リアクション）付与
+      # ステップ0: コメントへの受付スタンプ（👀 リアクション）付与
       # -----------------------------------------------------------------------
       # /update-vrt コマンドを受け取ったことをユーザーに伝えるため、即座に👀リアクションを追加します。
       - name: Add Eyes Reaction to Command Comment
@@ -47,6 +48,8 @@ jobs:
       # -----------------------------------------------------------------------
       # ステップ1: 対象PRのブランチ名を動的に判別してチェックアウト
       # -----------------------------------------------------------------------
+      # PRイベントとコメントイベントでは取得できるJSON構造が異なるため、
+      # GitHub Scriptを使って対象PRの正確なブランチ名（head.ref）を取得します。
       - name: Get PR Branch Name
         id: pr-branch
         uses: actions/github-script@v7
@@ -72,20 +75,25 @@ jobs:
       # -----------------------------------------------------------------------
       # ステップ2: テスト実行環境のセットアップ
       # -----------------------------------------------------------------------
+      # Node.js 環境のセットアップ（LTSバージョン使用）
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
 
+      # package.json に記載された依存パッケージを高速かつ確実にインストール
       - name: Install dependencies
         run: npm ci
 
+      # Playwrightの実行に必要なブラウザ（Chromium環境など）と依存ライブラリをOSにインストール
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
 
       # -----------------------------------------------------------------------
       # ステップ3-A: 【通常時】Playwright テストの実行
       # -----------------------------------------------------------------------
+      # /update-vrt コマンドでない（通常のPR更新）場合のみ実行。
+      # playwright.config.ts に定義された環境（PC/スマホ）で通常の検証を実行します。
       - name: Run Playwright tests
         if: "!contains(github.event.comment.body, '/update-vrt')"
         id: run-tests
@@ -96,6 +104,8 @@ jobs:
       # -----------------------------------------------------------------------
       # ステップ3-B: 【コマンド実行時】VRT（視覚テスト）スナップショット画像の自動更新
       # -----------------------------------------------------------------------
+      # コメントに "/update-vrt" が含まれている場合のみ実行。
+      # --update-snapshots フラグを付与して対象環境（PC/スマホ）のベースライン画像を上書き更新します。
       - name: Update VRT Snapshots
         if: "contains(github.event.comment.body, '/update-vrt')"
         env:
@@ -103,22 +113,27 @@ jobs:
         run: npx playwright test tests/saucedemo-visual-regression.spec.ts --update-snapshots --project=desktop-chrome --project=mobile-chrome
 
       # -----------------------------------------------------------------------
-      # 💡 追加機能2: Commit & Push 時に最新コミットの SHA ハッシュ値を出力保存
+      # ステップ4: 【コマンド実行時】更新されたスナップショット画像の Git Commit & Push
       # -----------------------------------------------------------------------
+      # /update-vrt 実行によって新しく生成・上書きされた画像ファイルをPRブランチへ自動コミットします。
+      # 差分がない場合もエラーにせず安全にスキップし、最新コミットSHAを出力変数に保存します。
       - name: Commit & Push updated snapshots
         if: "contains(github.event.comment.body, '/update-vrt')"
         id: commit-vrt
         run: |
+          # Gitコミット用のBotユーザー設定
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
+          # tests/ 配下の変更（*-snapshots フォルダ内の新旧画像）をすべてステージング
           git add -A tests/
           
+          # 差分が存在する場合のみコミット＆Pushを実施（[skip ci] で無限ループを防止）
           if ! git diff --staged --quiet; then
             git commit -m "chore(vrt): PC/スマホ全環境のVRTベースライン画像を自動更新 [skip ci]"
             git push
             
-            # コミットハッシュ値と「変更あり」フラグを出力変数へ格納
+            # 最新のコミットハッシュ値と「変更あり」フラグを出力変数へ格納
             NEW_SHA=$(git rev-parse HEAD)
             echo "commit_sha=${NEW_SHA}" >> $GITHUB_OUTPUT
             echo "has_changes=true" >> $GITHUB_OUTPUT
@@ -130,6 +145,8 @@ jobs:
       # -----------------------------------------------------------------------
       # ステップ5: HTMLテストレポートの GitHub Pages デプロイ
       # -----------------------------------------------------------------------
+      # 通常テスト時のみ実行（成功・失敗問わず always()）。
+      # 生成された HTML レポートを gh-pages ブランチの PR専用ディレクトリへアップロードします。
       - name: Deploy Playwright Report to GitHub Pages
         if: "always() && !contains(github.event.comment.body, '/update-vrt')"
         uses: peaceiris/actions-gh-pages@v4
@@ -139,8 +156,10 @@ jobs:
           destination_dir: pr-reports/${{ steps.pr-branch.outputs.result }}
 
       # -----------------------------------------------------------------------
-      # ステップ6: PR画面への結果フィードバックコメント投稿（コミットURL追加）
+      # ステップ6: PR画面への結果フィードバックコメント投稿
       # -----------------------------------------------------------------------
+      # 状況に応じてPRコメント欄へ自動フィードバックを投稿・更新します。
+      # /update-vrt 完了時はコミット比較リンク付きの返信を投稿します。
       - name: Comment PR Status or VRT Reply
         if: always()
         uses: actions/github-script@v7
@@ -150,6 +169,7 @@ jobs:
             const issueNumber = context.issue.number;
             
             if (isVrtCommand) {
+              // 💡 /update-vrt 完了時のレスポンス投稿
               const isSuccess = '${{ job.status }}' === 'success';
               const hasChanges = '${{ steps.commit-vrt.outputs.has_changes }}' === 'true';
               const commitSha = '${{ steps.commit-vrt.outputs.commit_sha }}';
@@ -172,6 +192,7 @@ jobs:
                 owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber, body: replyBody
               });
             } else {
+              // 💡 通常テスト結果（PASSED / FAILED）とレポートURLの投稿（既存コメントがあれば上書き更新）
               const status = '${{ steps.run-tests.outcome }}' === 'success' ? '✅ PASSED' : '❌ FAILED'; 
               const reportUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/pr-reports/${encodeURIComponent('${{ steps.pr-branch.outputs.result }}')}/`; 
 
@@ -202,6 +223,7 @@ jobs:
       # -----------------------------------------------------------------------
       # ステップ7: テスト結果（HTMLレポート）のアーティファクト保存
       # -----------------------------------------------------------------------
+      # Actions 実行画面の「Artifacts」からダウンロードできるよう、レポートフォルダを7日間保存します。
       - name: Upload Playwright Report Artifact
         if: always()
         uses: actions/upload-artifact@v4
