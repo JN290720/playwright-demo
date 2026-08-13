@@ -1,4 +1,4 @@
-# Playwright Demo & E2E Testing Pipeline
+# Playwright Demo & E2E Testing Pipeline　
 
 このプロジェクトは、Playwright を使用した Web アプリケーションの自動 E2E テスト・ビジュアルレグレッションテスト（VRT）、および GitHub Actions を活用した CI/CD パイプライン構築デモ用の個人リポジトリです。
 
