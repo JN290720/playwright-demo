@@ -69,7 +69,7 @@ jobs:
 
       # 取得したPRブランチの最新ソースコードをローカルワークスペースへ取得（Checkout）
       - name: Checkout PR Branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr-branch.outputs.result }}
 
