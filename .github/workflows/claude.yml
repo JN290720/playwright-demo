@@ -1,0 +1,45 @@
+name: Claude Code
+
+on:
+  # Issue / PR のコメントで @claude とメンションされた時
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  # PR レビュー本文で @claude とメンションされた時
+  pull_request_review:
+    types: [submitted]
+  # Issue の作成時に本文・タイトルで @claude とメンションされた時
+  issues:
+    types: [opened, assigned]
+
+# 最小権限: Claude が変更を push / PR 作成できるよう contents・pull-requests・issues は write
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write # claude-code-action の OIDC 認証用
+  actions: read   # PR の CI 結果を Claude が参照するため
+
+jobs:
+  claude:
+    # @claude を含むイベントのみ実行 (無関係なコメントでの起動・課金を防ぐ)
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
