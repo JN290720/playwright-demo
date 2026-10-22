@@ -19,7 +19,7 @@ Claude 向けの作業ルールは [CLAUDE.md](CLAUDE.md) にまとめていま�
 ```
 npm ci
 npx playwright install --with-deps
-npm run test              # 既定（ENV 未指定 = prod）。@prd タグの主要機能のみ
+npm run test:prod         # prod。@prd タグの主要機能のみ
 npm run test:stg          # staging。全テスト（PR の CI と同じ範囲）
 npx playwright test --ui  # UI モード
 ```
