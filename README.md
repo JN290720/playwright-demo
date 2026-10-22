@@ -16,12 +16,16 @@
 
 ## 📊 テストレポートの確認方法
 
-- **本番（main）ブランチの最新テスト結果**  
-  [👉 最新の Post-Deploy テストレポートを見る](https://jn290720.github.io/playwright-demo/main-deploy-report/)  
-  *(※ main ブランチへマージ・デプロイされた後に自動更新されます)*
+テストレポートは GitHub Pages で公開しています。種類ごとに URL と保存件数が異なります。
 
-- **Pull Request ごとのテスト結果**  
-  各 PR のコメント欄に自動投稿される `[View Test Report]` リンクから、該当 PR のテスト結果・動画・トレースログをブラウザ上で直接確認できます。
+| 種類 | QA リポジトリ（`playwright-demo-qa`） | 本体リポジトリ（`playwright-demo`） | いつ更新されるか | 何件残るか |
+| :--- | :--- | :--- | :--- | :--- |
+| **PR ごと** | [qa/pr-reports/\<branch\>/](https://jn290720.github.io/playwright-demo-qa/pr-reports/) | [demo/pr-reports/\<branch\>/](https://jn290720.github.io/playwright-demo/pr-reports/) | PR の作成・更新時 | PR 期間中のみ（マージ・クローズで削除） |
+| **デプロイ後（最新）** | [qa/main-deploy-report/](https://jn290720.github.io/playwright-demo-qa/main-deploy-report/) | [demo/main-deploy-report/](https://jn290720.github.io/playwright-demo/main-deploy-report/) | `main` マージ後に上書き | 最新 1 件 |
+| **デプロイ後（実行別）** | qa/main-test-\<run-id\>/ | demo/main-test-\<run-id\>/ | `main` マージ後に追加 | 新しい順 10 件 |
+| **週次（フル）** | [qa/weekly-report/](https://jn290720.github.io/playwright-demo-qa/weekly-report/) | — | 毎週月曜に上書き | 最新 1 件 |
+
+各 PR のコメント欄に自動投稿される `[View Test Report]` リンクから、テスト結果・動画・トレースログをブラウザ上で直接確認できます。
 
 ---
 
