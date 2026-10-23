@@ -51,17 +51,17 @@ npx playwright show-report
 
 ## ブランチ・コミット・PR
 
-- ブランチ名は `種別/内容` の形式。種別は `feature` / `fix` / `ci` / `docs` / `refactor` / `test` / `chore`。
+- ブランチ名は `種別/内容` の形式。種別は `feat` / `fix` / `ci` / `docs` / `refactor` / `test` / `chore`（一覧と意味は [CONTRIBUTING.md](CONTRIBUTING.md) を参照）。
 - コミットメッセージは `種別: 概要`(日本語)。例: `ci: PRテストワークフローの修正`。
 - `main` に直接 push しない。必ずブランチを切って PR にする。
-- PR 本文は [PR テンプレート](.github/workflows/PULL_REQUEST_TEMPLATE.md) の見出し(概要 / 関連 Issue / 変更内容 / 動作確認)に沿って書く。
-  - 注意: テンプレートが `.github/workflows/` にあるため、GitHub の PR 作成画面には自動で反映されない。また、記載の `npm run test` は存在しない(`test:stg` / `test:prod` を使う)。
+- PR 本文は [PR テンプレート](.github/PULL_REQUEST_TEMPLATE.md) の見出し(概要 / 関連 Issue / 変更内容 / 動作確認)に沿って書く。
 - 1 つの PR では 1 つの目的だけを扱う。無関係な変更を混ぜない。
+- 積み重ね PR（別の PR のブランチを base にした PR）は作らない。依存する変更は、先の PR を `main` にマージしてから、`main` から新しいブランチを切る。base が `main` でない PR は、マージ前に base を確認する。
 
 ## 権限・シークレット
 
 - ワークフローの `permissions` は最小限にする(Issue #33 の方針)。広げる必要がある場合は、理由をコメントに書く。
-- `.env.staging` / `.env.prod` は**機微な値を入れない設定用ファイル**(現在は `ENV_NAME` と `RUN_FULL_TESTS` のみ)。パスワード・トークンなどは追加せず、GitHub Secrets を使う。
+- `.env.staging` / `.env.prod` は**機微な値を入れない設定用ファイル**(現在は `ENV_NAME` と `RUN_FULL_TESTS`。`RUN_FULL_TESTS` は未使用のため PR-B で削除予定)。パスワード・トークンなどは追加せず、GitHub Secrets を使う。
 - `.env` はコミットしない。シークレットの値をログ・コメント・コミットに出力しない。
 
 ## Claude に作業を任せるとき
