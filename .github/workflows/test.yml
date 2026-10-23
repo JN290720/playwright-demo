@@ -55,7 +55,25 @@ jobs:
       # 💡 WebKit (Safari) 等の起動に必要な OS 依存ライブラリ (libevent 等) を常にインストール
       # ※ OS パッケージは Actions キャッシュ対象外となるため、キャッシュヒット時でも必ず実行します
       - name: Install Playwright System Dependencies
-        run: npx playwright install-deps
+        timeout-minutes: 12
+        run: |
+          # apt の設定（全ての apt-get に効く。install-deps の内部の呼び出しには、コマンドラインの -o を付けられないため、設定ファイルで渡す）
+          #   DPkg::Lock::Timeout: dpkg の lock を、最大 120 秒まで待つ（残った apt-get が lock を握っていても、次の試行が lock 待ちで即失敗しないように）
+          #   Acquire::http::Timeout: 取得が 30 秒止まったら打ち切る（止まった取得を、180 秒まで待たない）
+          sudo tee /etc/apt/apt.conf.d/80-retries > /dev/null <<'APTCONF'
+          Acquire::Retries "3";
+          Acquire::http::Timeout "30";
+          DPkg::Lock::Timeout "120";
+          APTCONF
+          for i in 1 2 3; do
+            if timeout 180 npx playwright install-deps; then
+              exit 0
+            fi
+            echo "::warning::install-deps attempt $i failed or timed out"
+            sleep 10
+          done
+          echo "::error::install-deps failed after 3 attempts"
+          exit 1
 
       # 💡 キャッシュがヒットしなかった場合のみ、ブラウザ本体（Chromium / WebKit）をダウンロード
       - name: Install Playwright Browsers
