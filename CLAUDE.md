@@ -21,7 +21,7 @@ Playwright による E2E テスト・ビジュアルレグレッションテス�
 - `tests/saucedemo-visual-regression.spec.ts-snapshots/`: VRT のベースライン画像
 - `.env.staging` / `.env.prod`: 環境ごとの設定。`ENV` 環境変数で切り替える(未指定は `prod`)
 - `playwright.config.ts`: プロジェクトは `desktop-chrome` / `mobile-chrome`。`desktop-safari` は PR 以外(main など)のみ
-- `.github/workflows/`: `pull-request.yml` / `deploy.yml` / `test.yml` / `claude.yml`
+- `.github/workflows/`: `pull-request.yml` / `deploy.yml` / `test.yml`
 
 ## コマンド
 
@@ -77,10 +77,6 @@ npx playwright show-report
 - Secrets・`.env.*` に関わる変更
 - `main` へのマージ、ブランチ・リポジトリの削除、force push
 
-GitHub Actions 上の Claude の制約:
-- GitHub App の仕様上、Claude は **`.github/workflows/` 配下のファイルを直接変更・コミットできない**。
-- ワークフローの変更を頼まれたときは、変更案(diff)をコメントで示し、人が適用する(または人がブランチを作って変更する)。
-- ローカルの Claude Code(人の権限で動く)は、この制約を受けないが、上記の「必ず人に確認する」対象であることは変わらない。
 
 やってはいけないこと:
 - `--no-verify` などによる hook の回避
