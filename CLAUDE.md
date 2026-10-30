@@ -61,7 +61,7 @@ npx playwright show-report
 ## 権限・シークレット
 
 - ワークフローの `permissions` は最小限にする(Issue #33 の方針)。広げる必要がある場合は、理由をコメントに書く。
-- `.env.staging` / `.env.prod` は**機微な値を入れない設定用ファイル**(現在は `ENV_NAME` と `RUN_FULL_TESTS`。`RUN_FULL_TESTS` は未使用のため PR-B で削除予定)。パスワード・トークンなどは追加せず、GitHub Secrets を使う。
+- `.env.staging` / `.env.prod` は**機微な値を入れない設定用ファイル**(現在は `ENV_NAME` のみ)。パスワード・トークンなどは追加せず、GitHub Secrets を使う。
 - `.env` はコミットしない。シークレットの値をログ・コメント・コミットに出力しない。
 
 ## Claude に作業を任せるとき
