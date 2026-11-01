@@ -4,3 +4,7 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly" # daily, weekly, monthly に設定可
+    # メジャー更新は出さない（共通規則: メジャーは自動で上げない。QA で検証してから手動で扱う）
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
