@@ -54,7 +54,7 @@ npx playwright show-report
 - ブランチ名は `種別/内容` の形式。種別は `feat` / `fix` / `ci` / `docs` / `refactor` / `test` / `chore`（一覧と意味は [CONTRIBUTING.md](CONTRIBUTING.md) を参照）。
 - コミットメッセージは `種別: 概要`(日本語)。例: `ci: PRテストワークフローの修正`。
 - `main` に直接 push しない。必ずブランチを切って PR にする。
-- PR 本文は [PR テンプレート](.github/PULL_REQUEST_TEMPLATE.md) の見出し(概要 / 関連 Issue / PR / 変更内容 / 動作確認・テスト内容 / スクリーンショット / エビデンス（任意）/ レビュワーへの連絡・特記事項)に沿って書く。
+- PR 本文は [PR テンプレート](.github/PULL_REQUEST_TEMPLATE.md) の見出しに沿って書く。見出しは `## ` の行の文字列どおりに、次の 6 つ（区切りの「/」は見出しの一部）: 「概要」「関連 Issue / PR」「変更内容」「動作確認・テスト内容」「スクリーンショット / エビデンス（任意）」「レビュワーへの連絡・特記事項」
 - 1 つの PR では 1 つの目的だけを扱う。無関係な変更を混ぜない。
 - 積み重ね PR（別の PR のブランチを base にした PR）は作らない。依存する変更は、先の PR を `main` にマージしてから、`main` から新しいブランチを切る。base が `main` でない PR は、マージ前に base を確認する。
 
