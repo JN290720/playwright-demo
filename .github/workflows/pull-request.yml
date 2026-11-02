@@ -26,7 +26,7 @@ jobs:
       (github.event.issue.pull_request && contains(github.event.comment.body, '/update-vrt'))
 
     timeout-minutes: 60
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       # -----------------------------------------------------------------------
@@ -87,6 +87,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # キーに使う、ランナーの OS の版（例: 24.04 → 2404）
+      - name: OS の版を取得
+        id: os
+        run: echo "version=$(. /etc/os-release && echo "$VERSION_ID" | tr -d .)" >> "$GITHUB_OUTPUT"
+
       # 💡 Playwright のブラウザバイナリ（~/.cache/ms-playwright）をキャッシュ
       # package-lock.json に変更がない限りダウンロード処理を短縮します
       - name: Cache Playwright Browsers
@@ -94,7 +99,8 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-pr-${{ hashFiles('**/package-lock.json') }}
+          # キーに、ランナーの OS の版を含める: ubuntu-latest の版が変わったときに、別の版のキャッシュに当たらないようにする
+          key: ${{ runner.os }}-${{ steps.os.outputs.version }}-playwright-pr-${{ hashFiles('**/package-lock.json') }}
 
       # 💡 WebKit (Safari) 等の起動に必要な OS 依存ライブラリ (libevent 等) を常にインストール
       # ※ OS パッケージは Actions キャッシュ対象外となるため、キャッシュヒット時でも必ず実行します
